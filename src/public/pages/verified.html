@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Verificação Concluída</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .message-container {
+      max-width: 600px;
+      margin: 20px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      text-align: center;
+      padding: 20px;
+    }
+    .confirmation-message {
+      font-size: 18px;
+      margin: 20px 0;
+      font-weight: 500;
+    }
+    .error-message {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+      padding: 15px;
+      border-radius: 5px;
+      text-align: center;
+      font-size: 1.2rem;
+      margin: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="message-container">
+    <h1 class="title">Verificação Concluída!</h1>
+    <p>Você pode fechar esta página.</p>
+    <p>Clique <a href="http://localhost:5173/">aqui</a> para voltar à página inicial.</p>
+  </div>
+  
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const userId = urlParams.get('user_id');
+    let requestSent = false;
+
+    if (!code || !userId) {
+      document.body.innerHTML = "<h2 class='error-message'>Erro!</h2><p>Parâmetros inválidos.</p>";
+    } else {
+      const verifyAccount = () => {
+        if (!requestSent) {
+          requestSent = true;
+          fetch(`/api/v1/users/verify?user_id=${encodeURIComponent(userId)}&code=${encodeURIComponent(code)}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`Erro na resposta da API: ${response.statusText}`);
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (data.success) {
+              document.body.innerHTML = "<h2>Conta verificada com sucesso!</h2><p>Você pode fechar esta página.</p>";
+              setTimeout(() => {
+                window.location.href = 'http://localhost:5173/';
+              }, 2000);
+            } else {
+              document.body.innerHTML = `<h2 class="error-message">Erro!</h2><p>${data.message || "Erro ao verificar a conta."}</p>`;
+            }
+          })
+          .catch((error) => {
+            console.error('Erro ao verificar a conta:', error);
+            document.body.innerHTML = "<h2 class='error-message'>Erro interno ao verificar a conta.</h2><p>Tente novamente mais tarde.</p>";
+          });
+        }
+      };
+
+      verifyAccount();
+    }
+  </script>
+</body>
+</html>

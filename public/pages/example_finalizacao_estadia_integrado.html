@@ -1,0 +1,570 @@
+<!-- 
+  EXEMPLO DE INTEGRAÇÃO - Tela de Finalização de Estadia
+  Integra as rotas de liberar quarto com a UI
+-->
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finalização de Estadia - Integração Liberar Quarto</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 600px;
+      width: 100%;
+      padding: 40px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 30px;
+      border-bottom: 2px solid #f0f0f0;
+      padding-bottom: 20px;
+    }
+
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #2d3748;
+    }
+
+    .step-indicator {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .step {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      color: #718096;
+      font-size: 14px;
+    }
+
+    .step.active {
+      background: #667eea;
+      color: white;
+    }
+
+    .step.completed {
+      background: #48bb78;
+      color: white;
+    }
+
+    .content {
+      margin-bottom: 30px;
+    }
+
+    .info-card {
+      background: #f7fafc;
+      border-left: 4px solid #667eea;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+
+    .info-label {
+      color: #718096;
+      font-weight: 500;
+    }
+
+    .info-value {
+      color: #2d3748;
+      font-weight: 600;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+
+    .status-badge.pending {
+      background: #fef5e7;
+      color: #d68910;
+    }
+
+    .status-badge.processing {
+      background: #ebf5fb;
+      color: #3498db;
+    }
+
+    .status-badge.completed {
+      background: #d5f4e6;
+      color: #27ae60;
+    }
+
+    .status-badge.failed {
+      background: #fadbd8;
+      color: #c0392b;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #2d3748;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #cbd5e0;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .status-message {
+      background: #f0f7ff;
+      border: 1px solid #90cdf4;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .status-message.show {
+      display: block;
+    }
+
+    .status-message.info {
+      background: #ebf5fb;
+      border-color: #90cdf4;
+      color: #2c5282;
+    }
+
+    .status-message.success {
+      background: #f0fdf4;
+      border-color: #86efac;
+      color: #166534;
+    }
+
+    .status-message.error {
+      background: #fef2f2;
+      border-color: #fca5a5;
+      color: #991b1b;
+    }
+
+    .status-message.warning {
+      background: #fefce8;
+      border-color: #fde047;
+      color: #854d0e;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top-color: #667eea;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .operation-log {
+      background: #f7fafc;
+      border-radius: 8px;
+      padding: 16px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .log-entry {
+      font-size: 12px;
+      color: #718096;
+      margin-bottom: 12px;
+      padding: 8px;
+      border-left: 2px solid #cbd5e0;
+      padding-left: 12px;
+    }
+
+    .log-entry.info {
+      border-left-color: #63b3ed;
+      background: rgba(99, 179, 237, 0.05);
+    }
+
+    .log-entry.success {
+      border-left-color: #68d391;
+      background: rgba(104, 211, 145, 0.05);
+    }
+
+    .log-entry.error {
+      border-left-color: #fc8181;
+      background: rgba(252, 129, 129, 0.05);
+    }
+
+    .time {
+      color: #a0aec0;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 class="title">Finalização de Estadia</h1>
+      <div class="step-indicator">
+        <div class="step completed">1</div>
+        <div class="step active">2</div>
+        <div class="step">3</div>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- INFORMAÇÕES DA RESERVA -->
+      <div class="info-card">
+        <div class="info-row">
+          <span class="info-label">Quarto</span>
+          <span class="info-value" id="roomNumber">101</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Hóspede</span>
+          <span class="info-value" id="guestName">João Silva</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Check-out</span>
+          <span class="info-value" id="checkoutDate">15 de maio às 12:00</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Valor Total</span>
+          <span class="info-value">R$ 450,00</span>
+        </div>
+      </div>
+
+      <!-- CARTÃO RFID STATUS -->
+      <div class="info-card">
+        <div class="info-row">
+          <span class="info-label">Status do Cartão</span>
+          <span class="info-value">
+            Ativo
+            <span class="status-badge pending" id="rfidStatus">Pronto</span>
+          </span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Operação ID</span>
+          <span class="info-value" id="operationId">-</span>
+        </div>
+      </div>
+
+      <!-- STATUS MENSAGEM -->
+      <div class="status-message" id="statusMessage"></div>
+
+      <!-- AÇÕES -->
+      <div class="action-buttons">
+        <button class="btn btn-primary" id="checkoutBtn" onclick="iniciarCheckout()">
+          🔐 Fazer Checkout
+        </button>
+        <button class="btn btn-secondary" onclick="visualizarHistorico()">
+          📋 Histórico
+        </button>
+      </div>
+
+      <!-- LOG DE OPERAÇÕES -->
+      <div>
+        <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #2d3748;">
+          Log de Operações
+        </h3>
+        <div class="operation-log" id="operationLog">
+          <div class="log-entry info">
+            <span class="time">14:30:25</span> - Cartão emitido no check-in
+          </div>
+          <div class="log-entry info">
+            <span class="time">14:30:26</span> - Cartão gravado com sucesso
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ======================================
+    // CONFIGURAÇÕES
+    // ======================================
+    const CONFIG = {
+      baseUrl: 'http://localhost:3000',
+      hotelId: 'FB5D45CD-0C6A-4C4C-B10B-B44875ACDFCC',
+      reservaId: '550e8400-e29b-41d4-a716-446655440000', // Substituir com ID real
+      pollInterval: 2000, // ms
+      maxPolls: 30, // máximo de tentativas
+    };
+
+    let operacaoEmProgresso = false;
+    let pollCount = 0;
+
+    // ======================================
+    // FUNÇÕES UTILITÁRIAS
+    // ======================================
+
+    function mostrarMensagem(mensagem, tipo = 'info') {
+      const el = document.getElementById('statusMessage');
+      el.textContent = mensagem;
+      el.className = `status-message show ${tipo}`;
+    }
+
+    function ocultarMensagem() {
+      const el = document.getElementById('statusMessage');
+      el.className = 'status-message';
+    }
+
+    function adicionarLogEntry(mensagem, tipo = 'info') {
+      const log = document.getElementById('operationLog');
+      const time = new Date().toLocaleTimeString('pt-BR');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${tipo}`;
+      entry.innerHTML = `
+        <span class="time">${time}</span> - ${mensagem}
+      `;
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // ======================================
+    // 1. FAZER CHECKOUT
+    // ======================================
+
+    async function iniciarCheckout() {
+      if (operacaoEmProgresso) {
+        alert('Operação em progresso. Aguarde...');
+        return;
+      }
+
+      const btn = document.getElementById('checkoutBtn');
+      btn.disabled = true;
+      operacaoEmProgresso = true;
+
+      try {
+        mostrarMensagem(
+          '⏳ Iniciando checkout... Desativando cartão do hóspede...',
+          'warning'
+        );
+        adicionarLogEntry('Iniciando checkout', 'info');
+
+        // Chamar rota de checkout
+        const response = await fetch(
+          `${CONFIG.baseUrl}/hotel/${CONFIG.hotelId}/liberar-quarto/checkout`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `reservaId=${CONFIG.reservaId}&tempoEspera=5000`,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
+        }
+
+        const resultado = await response.json();
+
+        if (!resultado.sucesso) {
+          throw new Error(resultado.mensagem);
+        }
+
+        adicionarLogEntry(
+          `Operação criada: ${resultado.dados.operationId}`,
+          'info'
+        );
+        document.getElementById('operationId').textContent =
+          resultado.dados.operationId;
+
+        // Consultar status
+        await consultarStatusCheckout(resultado.dados.operationId);
+      } catch (erro) {
+        adicionarLogEntry(`Erro: ${erro.message}`, 'error');
+        mostrarMensagem(`❌ ${erro.message}`, 'error');
+        btn.disabled = false;
+        operacaoEmProgresso = false;
+      }
+    }
+
+    // ======================================
+    // 2. CONSULTAR STATUS
+    // ======================================
+
+    async function consultarStatusCheckout(operationId) {
+      pollCount = 0;
+
+      const intervalo = setInterval(async () => {
+        pollCount++;
+
+        try {
+          const response = await fetch(
+            `${CONFIG.baseUrl}/hotel/${CONFIG.hotelId}/liberar-quarto/status/${operationId}`
+          );
+
+          if (!response.ok) throw new Error('Erro ao consultar status');
+
+          const resultado = await response.json();
+          const status = resultado.dados.status;
+
+          adicionarLogEntry(`Status: ${status}`, 'info');
+
+          if (status === 'completed') {
+            clearInterval(intervalo);
+            mostrarMensagem(
+              `✅ Checkout finalizado! Cartão desativado: ${resultado.dados.cardSnr}`,
+              'success'
+            );
+            document.getElementById('rfidStatus').textContent = 'Desativado';
+            document.getElementById('rfidStatus').className =
+              'status-badge completed';
+            adicionarLogEntry(
+              'Cartão desativado com sucesso',
+              'success'
+            );
+            operacaoEmProgresso = false;
+          } else if (status === 'failed') {
+            clearInterval(intervalo);
+            mostrarMensagem('❌ Falha ao desativar cartão', 'error');
+            adicionarLogEntry('Falha ao desativar cartão', 'error');
+            operacaoEmProgresso = false;
+            document.getElementById('checkoutBtn').disabled = false;
+          } else {
+            // Ainda processando
+            if (status === 'processing') {
+              mostrarMensagem(
+                '⏳ Processando... Aguarde (hóspede deve aproximar o cartão da fechadura)',
+                'warning'
+              );
+            }
+          }
+
+          if (pollCount >= CONFIG.maxPolls && status !== 'completed' && status !== 'failed') {
+            clearInterval(intervalo);
+            mostrarMensagem(
+              '⚠️ Timeout ao aguardar resposta do cartão. Verifique manualmente.',
+              'warning'
+            );
+            adicionarLogEntry('Timeout na operação', 'error');
+            operacaoEmProgresso = false;
+            document.getElementById('checkoutBtn').disabled = false;
+          }
+        } catch (erro) {
+          adicionarLogEntry(`Erro ao consultar: ${erro.message}`, 'error');
+          if (pollCount >= CONFIG.maxPolls) {
+            clearInterval(intervalo);
+            operacaoEmProgresso = false;
+            document.getElementById('checkoutBtn').disabled = false;
+          }
+        }
+      }, CONFIG.pollInterval);
+    }
+
+    // ======================================
+    // 3. VISUALIZAR HISTÓRICO
+    // ======================================
+
+    async function visualizarHistorico() {
+      try {
+        const response = await fetch(
+          `${CONFIG.baseUrl}/hotel/${CONFIG.hotelId}/liberar-quarto/reserva/${CONFIG.reservaId}`
+        );
+
+        if (!response.ok) throw new Error('Erro ao buscar histórico');
+
+        const resultado = await response.json();
+        const operacoes = resultado.dados;
+
+        if (operacoes.length === 0) {
+          alert('Nenhuma operação registrada');
+          return;
+        }
+
+        let msg = 'HISTÓRICO DE OPERAÇÕES\n\n';
+        operacoes.forEach((op, i) => {
+          msg += `${i + 1}. ${op.tipo.toUpperCase()}\n`;
+          msg += `   Operação: ${op.metadados?.operationId || '-'}\n`;
+          msg += `   Status: ${op.metadados?.status || '-'}\n`;
+          msg += `   ${op.titulo}\n`;
+          msg += `   ${new Date(op.criado_em).toLocaleString('pt-BR')}\n\n`;
+        });
+
+        alert(msg);
+      } catch (erro) {
+        alert(`Erro: ${erro.message}`);
+      }
+    }
+
+    // ======================================
+    // INICIALIZAÇÃO
+    // ======================================
+
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('✅ Página carregada - Integração Liberar Quarto');
+      console.log(`📍 Config:`, CONFIG);
+    });
+  </script>
+</body>
+</html>

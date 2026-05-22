@@ -1,0 +1,9 @@
+﻿{
+    "request":  {
+                    "quantity":  1,
+                    "hotelId":  "FB5D45CD-0C6A-4C4C-B10B-B44875ACDFCC",
+                    "room":  "Quarto 101",
+                    "waitMs":  3000,
+                    "requestId":  "REQ-CHECKOUT-1779113985483"
+                }
+}

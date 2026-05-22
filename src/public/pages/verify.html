@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificação de Conta</title>
+</head>
+<body>
+    <h2>Verificando sua conta...</h2>
+    <p>Aguarde enquanto verificamos suas informações.</p>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const userId = urlParams.get('user_id');
+
+        if (!code || !userId) {
+            document.body.innerHTML = "<h2>Erro!</h2><p>Parâmetros inválidos.</p>";
+        } else {
+            fetch(`/api/v1/users/verify?code=${encodeURIComponent(code)}&user_id=${encodeURIComponent(userId)}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.body.innerHTML = "<h2>Conta verificada com sucesso!</h2><p>Você pode fechar esta página.</p>";
+                } else {
+                    document.body.innerHTML = `<h2>Erro!</h2><p>${data.message || "Erro ao verificar a conta."}</p>`;
+                }
+            })
+            .catch(error => {
+                document.body.innerHTML = "<h2>Erro!</h2><p>Falha na verificação. Tente novamente mais tarde.</p>";
+                console.error(error);
+            });
+        }
+    </script>
+</body>
+</html>

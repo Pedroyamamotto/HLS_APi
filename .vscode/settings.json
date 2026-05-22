@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cd c:\\\\Users\\\\pedra\\\\HLS_APi ; node -e \"\nimport\\('mssql'\\)\\.then\\(async \\(sql\\) => \\{\n  const config = \\{\n    user: 'sa',\n    password: 'Password123',\n    database: 'HLS_API',\n    server: 'localhost',\n    authentication: \\{ type: 'default' \\},\n    options: \\{ trustServerCertificate: true \\}\n  \\};\n  \n  try \\{\n    const pool = new sql\\.ConnectionPool\\(config\\);\n    await pool\\.connect\\(\\);\n    \n    const query = 'ALTER TABLE reserva ADD valor DECIMAL\\(10,2\\) NULL;';\n    const result = await pool\\.request\\(\\)\\.query\\(query\\);\n    \n    console\\.log\\('Migração executada com sucesso!'\\);\n    await pool\\.close\\(\\);\n  \\} catch \\(err\\) \\{\n    console\\.error\\('Erro na migração:', err\\.message\\);\n  \\}\n\\}\\)\\.catch\\(e => console\\.error\\('Erro ao carregar MSSQL:', e\\.message\\)\\);\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
