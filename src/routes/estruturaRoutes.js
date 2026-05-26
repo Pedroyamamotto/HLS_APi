@@ -14,7 +14,6 @@ import {
   removeAndar,
   removeCategoria,
   removeQuarto,
-  restaurarQuarto,
   updateAndar,
   updateCategoria,
   updateQuarto,
@@ -42,6 +41,5 @@ router.post('/quartos', upload.none(), createQuarto);
 router.get('/quartos/:quartoId', getQuarto);
 router.patch('/quartos/:quartoId', upload.none(), updateQuarto);
 router.delete('/quartos/:quartoId', removeQuarto);
-router.post('/quartos/:quartoId/restaurar', restaurarQuarto);
 
 export default router;

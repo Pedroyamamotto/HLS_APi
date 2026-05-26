@@ -1,5 +1,76 @@
 import { queryWithParams } from '../utils/database.js';
 
+function normalizarFotoUrl(valor) {
+  if (valor === undefined) return null;
+  if (valor === null) return null;
+  const url = String(valor).trim();
+  return url || null;
+}
+
+let colunaFotoUrlGarantida = false;
+let tabelaProdutoGarantida = false;
+
+async function garantirTabelaProduto() {
+  if (tabelaProdutoGarantida) return;
+
+  await queryWithParams(
+    `IF OBJECT_ID('produto', 'U') IS NULL
+     BEGIN
+       CREATE TABLE produto (
+         id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
+         nome NVARCHAR(150) NOT NULL,
+         categoria NVARCHAR(150) NULL,
+         preco_custo DECIMAL(10,2) NOT NULL,
+         preco_venda DECIMAL(10,2) NOT NULL,
+         foto_url NVARCHAR(500) NULL
+       );
+     END
+     ELSE
+     BEGIN
+       IF COL_LENGTH('produto', 'foto_url') IS NULL
+         ALTER TABLE produto ADD foto_url NVARCHAR(500) NULL;
+
+       IF COL_LENGTH('produto', 'foto_url') IS NOT NULL
+         AND EXISTS (
+           SELECT 1
+           FROM sys.columns
+           WHERE object_id = OBJECT_ID('produto')
+             AND name = 'foto_url'
+             AND system_type_id <> 231
+         )
+         ALTER TABLE produto ALTER COLUMN foto_url NVARCHAR(500) NULL;
+     END`,
+    {}
+  );
+
+  tabelaProdutoGarantida = true;
+}
+
+async function garantirColunaFotoUrlProduto() {
+  if (colunaFotoUrlGarantida) return;
+
+  await queryWithParams(
+    `IF OBJECT_ID('produto', 'U') IS NOT NULL
+     BEGIN
+       IF COL_LENGTH('produto', 'foto_url') IS NULL
+         ALTER TABLE produto ADD foto_url NVARCHAR(500) NULL;
+
+       IF COL_LENGTH('produto', 'foto_url') IS NOT NULL
+         AND EXISTS (
+           SELECT 1
+           FROM sys.columns
+           WHERE object_id = OBJECT_ID('produto')
+             AND name = 'foto_url'
+             AND system_type_id <> 231
+         )
+         ALTER TABLE produto ALTER COLUMN foto_url NVARCHAR(500) NULL;
+     END`,
+    {}
+  );
+
+  colunaFotoUrlGarantida = true;
+}
+
 function normalizarNumeroEntrada(valor) {
   if (valor === null || valor === undefined || valor === '') {
     return null;
@@ -37,6 +108,9 @@ async function validarNomeProdutoUnico({ nome, ignorarId = null }) {
 }
 
 export async function listarProdutos({ categoria }) {
+  await garantirTabelaProduto();
+  await garantirColunaFotoUrlProduto();
+
   const filtros = [];
   const params = {};
 
@@ -53,7 +127,8 @@ export async function listarProdutos({ categoria }) {
         nome,
         categoria,
         preco_custo,
-        preco_venda
+        preco_venda,
+        foto_url
      FROM produto
      ${whereClause}
      ORDER BY nome`,
@@ -64,13 +139,17 @@ export async function listarProdutos({ categoria }) {
 }
 
 export async function obterProdutoPorId({ produtoId }) {
+  await garantirTabelaProduto();
+  await garantirColunaFotoUrlProduto();
+
   const resultado = await queryWithParams(
     `SELECT TOP 1
         id,
         nome,
         categoria,
         preco_custo,
-        preco_venda
+        preco_venda,
+        foto_url
      FROM produto
      WHERE id = @produtoId`,
     { produtoId }
@@ -83,7 +162,10 @@ export async function obterProdutoPorId({ produtoId }) {
   return resultado.recordset[0];
 }
 
-export async function criarProduto({ nome, categoria = null, precoCusto, precoVenda }) {
+export async function criarProduto({ nome, categoria = null, precoCusto, precoVenda, fotoUrl }) {
+  await garantirTabelaProduto();
+  await garantirColunaFotoUrlProduto();
+
   if (!nome) {
     throw new Error('Campo obrigatório: nome');
   }
@@ -104,21 +186,25 @@ export async function criarProduto({ nome, categoria = null, precoCusto, precoVe
   await validarNomeProdutoUnico({ nome: nomeNormalizado });
 
   const resultado = await queryWithParams(
-    `INSERT INTO produto (nome, categoria, preco_custo, preco_venda)
-     OUTPUT INSERTED.id, INSERTED.nome, INSERTED.categoria, INSERTED.preco_custo, INSERTED.preco_venda
-     VALUES (@nome, @categoria, @precoCusto, @precoVenda)`,
+    `INSERT INTO produto (nome, categoria, preco_custo, preco_venda, foto_url)
+     OUTPUT INSERTED.id, INSERTED.nome, INSERTED.categoria, INSERTED.preco_custo, INSERTED.preco_venda, INSERTED.foto_url
+     VALUES (@nome, @categoria, @precoCusto, @precoVenda, @fotoUrl)`,
     {
       nome: nomeNormalizado,
       categoria: categoriaNormalizada,
       precoCusto: precoCustoNumero,
       precoVenda: precoVendaNumero,
+      fotoUrl: normalizarFotoUrl(fotoUrl),
     }
   );
 
   return resultado.recordset[0];
 }
 
-export async function atualizarProduto({ produtoId, nome, categoria, precoCusto, precoVenda }) {
+export async function atualizarProduto({ produtoId, nome, categoria, precoCusto, precoVenda, fotoUrl }) {
+  await garantirTabelaProduto();
+  await garantirColunaFotoUrlProduto();
+
   const produto = await queryWithParams(
     `SELECT TOP 1 id FROM produto WHERE id = @produtoId`,
     { produtoId }
@@ -161,6 +247,11 @@ export async function atualizarProduto({ produtoId, nome, categoria, precoCusto,
     params.precoVenda = precoVendaNumero;
   }
 
+  if (fotoUrl !== undefined) {
+    campos.push('foto_url = @fotoUrl');
+    params.fotoUrl = normalizarFotoUrl(fotoUrl);
+  }
+
   if (campos.length === 0) {
     throw new Error('Nenhum campo para atualizar');
   }
@@ -168,7 +259,7 @@ export async function atualizarProduto({ produtoId, nome, categoria, precoCusto,
   const resultado = await queryWithParams(
     `UPDATE produto
      SET ${campos.join(', ')}
-     OUTPUT INSERTED.id, INSERTED.nome, INSERTED.categoria, INSERTED.preco_custo, INSERTED.preco_venda
+     OUTPUT INSERTED.id, INSERTED.nome, INSERTED.categoria, INSERTED.preco_custo, INSERTED.preco_venda, INSERTED.foto_url
      WHERE id = @produtoId`,
     params
   );
@@ -177,6 +268,7 @@ export async function atualizarProduto({ produtoId, nome, categoria, precoCusto,
 }
 
 export async function deletarProduto({ produtoId }) {
+  await garantirTabelaProduto();
   const resultado = await queryWithParams(
     `DELETE FROM produto
      OUTPUT DELETED.id, DELETED.nome

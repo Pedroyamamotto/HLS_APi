@@ -1,5 +1,6 @@
 import express from 'express';
 import multer from 'multer';
+import { uploadImagemPerfil } from '../middlewares/uploadImagemPerfil.js';
 import {
   createHotel,
   getHotel,
@@ -24,12 +25,18 @@ import {
 
 const router = express.Router();
 const upload = multer();
+const uploadHotelImagem = uploadImagemPerfil.fields([
+  { name: 'imagemHotel', maxCount: 1 },
+  { name: 'foto', maxCount: 1 },
+  { name: 'imagem', maxCount: 1 },
+  { name: 'arquivo', maxCount: 1 },
+]);
 
 // Hotel CRUD
 router.get('/', listHotels);
-router.post('/', upload.none(), createHotel);
+router.post('/', uploadHotelImagem, createHotel);
 router.get('/:id', getHotel);
-router.patch('/:id', upload.none(), updateHotel);
+router.patch('/:id', uploadHotelImagem, updateHotel);
 router.delete('/:id', removeHotel);
 router.post('/:id/vincular-lisensa', upload.none(), linkHotelToLisensa);
 

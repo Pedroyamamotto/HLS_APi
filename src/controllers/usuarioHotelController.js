@@ -7,6 +7,33 @@ import {
   atualizarPermissoesRole,
 } from '../services/usuarioHotelService.js';
 
+function extrairFotoUrl(req) {
+  const bodyFotoUrl = req.body.FotoUrl ?? req.body.fotoUrl ?? req.body.foto_url;
+  if (bodyFotoUrl) return bodyFotoUrl;
+
+  const file = req.file
+    || req.files?.foto?.[0]
+    || req.files?.avatar?.[0]
+    || req.files?.imagem?.[0]
+    || req.files?.arquivo?.[0]
+    || req.files?.imagemPerfil?.[0]
+    || req.file
+
+  if (!file) return undefined;
+
+  if (file.filename) {
+    return `/uploads/${file.filename}`;
+  }
+
+  if (file.path) {
+    const partes = String(file.path).replace(/\\/g, '/').split('/');
+    const filename = partes[partes.length - 1];
+    return filename ? `/uploads/${filename}` : undefined;
+  }
+
+  return undefined;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function naoEncontrado(res, msg = 'Não encontrado') {
@@ -58,7 +85,7 @@ export async function updateUser(req, res) {
     const email        = req.body.Email        ?? req.body.email;
     const telefone     = req.body.Telefone     ?? req.body.telefone;
     const roleId       = req.body.RoleId       ?? req.body.roleId;
-    const fotoUrl      = req.body.FotoUrl      ?? req.body.fotoUrl ?? req.body.foto_url;
+    const fotoUrl      = extrairFotoUrl(req);
     const senhaAtual   = req.body.SenhaAtual   ?? req.body.senhaAtual;
     const novaSenha    = req.body.NovaSenha    ?? req.body.novaSenha;
 

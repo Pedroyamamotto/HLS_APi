@@ -1,5 +1,39 @@
 import { queryWithParams } from '../utils/database.js';
 
+let colunaFotoUrlHotelGarantida = false;
+
+function normalizarFotoUrl(valor) {
+  if (valor === undefined) return null;
+  if (valor === null) return null;
+  const url = String(valor).trim();
+  return url || null;
+}
+
+async function garantirColunaFotoUrlHotel() {
+  if (colunaFotoUrlHotelGarantida) return;
+
+  await queryWithParams(
+    `IF OBJECT_ID('hotel', 'U') IS NOT NULL
+     BEGIN
+       IF COL_LENGTH('hotel', 'foto_url') IS NULL
+         ALTER TABLE hotel ADD foto_url NVARCHAR(500) NULL;
+
+       IF COL_LENGTH('hotel', 'foto_url') IS NOT NULL
+         AND EXISTS (
+           SELECT 1
+           FROM sys.columns
+           WHERE object_id = OBJECT_ID('hotel')
+             AND name = 'foto_url'
+             AND system_type_id <> 231
+         )
+         ALTER TABLE hotel ALTER COLUMN foto_url NVARCHAR(500) NULL;
+     END`,
+    {}
+  );
+
+  colunaFotoUrlHotelGarantida = true;
+}
+
 function twoDigits(value) {
   return String(value).padStart(2, '0');
 }
@@ -69,12 +103,15 @@ async function criarAssinatura({ dataVencimento, tipo = 'Premium', valorMensal =
 }
 
 export async function listarHoteis() {
+  await garantirColunaFotoUrlHotel();
+
   const resultado = await queryWithParams(
     `SELECT
         h.id,
         h.nome,
         h.moeda_local,
         h.endereco,
+        h.foto_url,
         h.assinatura_id,
         h.politica_id,
         a.data_vencimento,
@@ -91,12 +128,15 @@ export async function listarHoteis() {
 }
 
 export async function obterHotelPorId({ id }) {
+  await garantirColunaFotoUrlHotel();
+
   const resultado = await queryWithParams(
     `SELECT TOP 1
         h.id,
         h.nome,
         h.moeda_local,
         h.endereco,
+        h.foto_url,
         h.assinatura_id,
         h.politica_id,
         a.data_vencimento,
@@ -116,18 +156,22 @@ export async function obterHotelPorId({ id }) {
   return resultado.recordset[0];
 }
 
-export async function criarHotel({ nome, moedaLocal, endereco = null, assinaturaId = null, politicaId = null }) {
+export async function criarHotel({ nome, moedaLocal, endereco = null, assinaturaId = null, politicaId = null, fotoUrl = null }) {
+  await garantirColunaFotoUrlHotel();
+
   const resultado = await queryWithParams(
-    `INSERT INTO hotel (assinatura_id, politica_id, nome, moeda_local, endereco)
-     OUTPUT INSERTED.id, INSERTED.nome, INSERTED.moeda_local, INSERTED.endereco, INSERTED.assinatura_id, INSERTED.politica_id
-     VALUES (@assinaturaId, @politicaId, @nome, @moedaLocal, @endereco)`,
-    { nome, moedaLocal, endereco, assinaturaId, politicaId }
+    `INSERT INTO hotel (assinatura_id, politica_id, nome, moeda_local, endereco, foto_url)
+     OUTPUT INSERTED.id, INSERTED.nome, INSERTED.moeda_local, INSERTED.endereco, INSERTED.foto_url, INSERTED.assinatura_id, INSERTED.politica_id
+     VALUES (@assinaturaId, @politicaId, @nome, @moedaLocal, @endereco, @fotoUrl)`,
+    { nome, moedaLocal, endereco, assinaturaId, politicaId, fotoUrl: normalizarFotoUrl(fotoUrl) }
   );
 
   return resultado.recordset[0];
 }
 
-export async function atualizarHotel({ id, nome, moedaLocal, endereco, assinaturaId, politicaId }) {
+export async function atualizarHotel({ id, nome, moedaLocal, endereco, assinaturaId, politicaId, fotoUrl }) {
+  await garantirColunaFotoUrlHotel();
+
   const campos = [];
   const params = { id };
 
@@ -156,6 +200,11 @@ export async function atualizarHotel({ id, nome, moedaLocal, endereco, assinatur
     params.politicaId = politicaId || null;
   }
 
+  if (fotoUrl !== undefined) {
+    campos.push('foto_url = @fotoUrl');
+    params.fotoUrl = normalizarFotoUrl(fotoUrl);
+  }
+
   if (campos.length === 0) {
     throw new Error('Nenhum campo para atualizar');
   }
@@ -163,7 +212,7 @@ export async function atualizarHotel({ id, nome, moedaLocal, endereco, assinatur
   const resultado = await queryWithParams(
     `UPDATE hotel
      SET ${campos.join(', ')}
-     OUTPUT INSERTED.id, INSERTED.nome, INSERTED.moeda_local, INSERTED.endereco, INSERTED.assinatura_id, INSERTED.politica_id
+     OUTPUT INSERTED.id, INSERTED.nome, INSERTED.moeda_local, INSERTED.endereco, INSERTED.foto_url, INSERTED.assinatura_id, INSERTED.politica_id
      WHERE id = @id`,
     params
   );

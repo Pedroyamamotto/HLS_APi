@@ -4,20 +4,8 @@ import hotelRoutes from '../routes/hotelRoutes.js';
 import hospedeRoutes from '../routes/hospedeRoutes.js';
 import lisensaRoutes from '../routes/lisensaRoutes.js';
 import estruturaRoutes from '../routes/estruturaRoutes.js';
-import governancaRoutes from '../routes/governancaRoutes.js';
 import produtoRoutes from '../routes/produtoRoutes.js';
 import usuarioHotelRoutes from '../routes/usuarioHotelRoutes.js';
-import reservasRoutes from '../routes/reservasRoutes.js';
-import consumoRoutes from '../routes/consumoRoutes.js';
-import reservaLogsRoutes from '../routes/reservaLogsRoutes.js';
-import liberarQuartoRoutes from '../routes/liberarQuartoRoutes.js';
-import chekingRoutes from '../routes/chekingRoutes.js';
-import financeiroRoutes from '../routes/financeiroRoutes.js';
-import multer from 'multer';
-import {
-	listReservasByHotel,
-	createReserva,
-} from '../controllers/Controller_Reserva/reservasController.js';
 import {
 	health,
 } from '../controllers/Controller_Health/healthController.js';
@@ -47,38 +35,11 @@ router.use('/hoteis', hotelRoutes);
 // Rotas de hóspedes por hotel
 router.use('/hotel/:hotelId/hospedes', hospedeRoutes);
 
-// Rotas de reservas por hotel (scoped)
-const _upload = multer();
-router.get('/hotel/:hotelId/reservas', listReservasByHotel);
-router.post('/hotel/:hotelId/reservas', _upload.none(), createReserva);
-
-// Rotas de reservas globais (CRUD por ID)
-router.use('/reservas', reservasRoutes);
-
 // Rotas de usuários por hotel + security matrix
 router.use('/hotel/:hotelId/users', usuarioHotelRoutes);
 
 // Rotas de estrutura por hotel (andares, categorias e quartos)
 router.use('/hotel/:hotelId', estruturaRoutes);
-
-// Rotas de histórico de governança por hotel
-router.use('/hotel/:hotelId', governancaRoutes);
-
-// Rotas de logs unificados por reserva/quarto
-router.use('/hotel/:hotelId', reservaLogsRoutes);
-
-// Rotas de liberar quarto (integração Yamamotto)
-router.use('/hotel/:hotelId/liberar-quarto', liberarQuartoRoutes);
-
-// Rota compat de gravação de cartão (external integration)
-router.use('/cheking', chekingRoutes);
-
-// Rotas de consumo por hotel
-router.use('/hotel/:hotelId/consumo', consumoRoutes);
-
-// Rotas financeiras por hotel
-router.use('/hotel/:hotelId/finaceiro', financeiroRoutes);
-router.use('/hotel/:hotelId/financeiro', financeiroRoutes);
 
 // Rotas do catálogo de produtos e serviços
 router.use('/produtos', produtoRoutes);

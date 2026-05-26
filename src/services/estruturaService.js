@@ -1,4 +1,4 @@
-import { query, queryWithParams } from '../utils/database.js';
+import { queryWithParams } from '../utils/database.js';
 
 function normalizarStatus(status) {
   if (!status) return null;
@@ -21,71 +21,6 @@ function normalizarNumeroEntrada(valor) {
   }
 
   return Number(valor);
-}
-
-function normalizarFotoUrl(valor) {
-  if (valor === undefined) return undefined;
-  if (valor === null) return null;
-  const url = String(valor).trim();
-  return url || null;
-}
-
-function normalizarFotosJson(valor) {
-  if (valor === undefined) return undefined;
-  if (valor === null) return null;
-
-  if (Array.isArray(valor)) {
-    const fotos = valor
-      .map((item) => String(item || '').trim())
-      .filter(Boolean);
-    return JSON.stringify(fotos);
-  }
-
-  if (typeof valor === 'string') {
-    const limpo = valor.trim();
-    if (!limpo) return null;
-
-    try {
-      const parsed = JSON.parse(limpo);
-      if (!Array.isArray(parsed)) return null;
-      const fotos = parsed
-        .map((item) => String(item || '').trim())
-        .filter(Boolean);
-      return JSON.stringify(fotos);
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-}
-
-let camposManutencaoGarantidos = false;
-
-async function garantirCamposManutencaoQuarto() {
-  if (camposManutencaoGarantidos) return;
-
-  await query(`
-    IF OBJECT_ID('quarto', 'U') IS NOT NULL
-    BEGIN
-      IF COL_LENGTH('quarto', 'status_anterior') IS NULL
-        ALTER TABLE quarto ADD status_anterior NVARCHAR(20) NULL;
-
-      IF COL_LENGTH('quarto', 'motivo_manutencao') IS NULL
-        ALTER TABLE quarto ADD motivo_manutencao NVARCHAR(200) NULL;
-
-      IF COL_LENGTH('quarto', 'categoria_manutencao') IS NULL
-        ALTER TABLE quarto ADD categoria_manutencao NVARCHAR(120) NULL;
-
-      IF COL_LENGTH('quarto', 'descricao_manutencao') IS NULL
-        ALTER TABLE quarto ADD descricao_manutencao NVARCHAR(500) NULL;
-
-      IF COL_LENGTH('quarto', 'manutencao_aberta_em') IS NULL
-        ALTER TABLE quarto ADD manutencao_aberta_em DATETIME2 NULL;
-    END
-  `);
-
-  camposManutencaoGarantidos = true;
 }
 
 async function validarHotelExiste(hotelId) {
@@ -309,13 +244,12 @@ export async function listarCategoriasQuarto({ hotelId }) {
         c.nome,
         c.descricao,
         c.capacidade,
-          c.foto_url,
         c.preco_diaria,
         COUNT(q.id) AS total_quartos
      FROM categoria_quarto c
      LEFT JOIN quarto q ON q.categoria_id = c.id
      WHERE c.hotel_id = @hotelId
-        GROUP BY c.id, c.hotel_id, c.nome, c.descricao, c.capacidade, c.foto_url, c.preco_diaria
+     GROUP BY c.id, c.hotel_id, c.nome, c.descricao, c.capacidade, c.preco_diaria
      ORDER BY c.nome`,
     { hotelId }
   );
@@ -333,7 +267,6 @@ export async function obterCategoriaQuartoPorId({ hotelId, categoriaId }) {
         c.nome,
         c.descricao,
         c.capacidade,
-        c.foto_url,
         c.preco_diaria,
         (SELECT COUNT(1) FROM quarto q WHERE q.categoria_id = c.id) AS total_quartos
      FROM categoria_quarto c
@@ -349,7 +282,7 @@ export async function obterCategoriaQuartoPorId({ hotelId, categoriaId }) {
   return resultado.recordset[0];
 }
 
-export async function criarCategoriaQuarto({ hotelId, nome, descricao = null, capacidade, precoDiaria, fotoUrl }) {
+export async function criarCategoriaQuarto({ hotelId, nome, descricao = null, capacidade, precoDiaria }) {
   await validarHotelExiste(hotelId);
 
   if (!nome) {
@@ -375,23 +308,22 @@ export async function criarCategoriaQuarto({ hotelId, nome, descricao = null, ca
   await validarNomeCategoriaUnico({ hotelId, nome: String(nome).trim() });
 
   const resultado = await queryWithParams(
-    `INSERT INTO categoria_quarto (hotel_id, nome, descricao, capacidade, preco_diaria, foto_url)
-     OUTPUT INSERTED.id, INSERTED.hotel_id, INSERTED.nome, INSERTED.descricao, INSERTED.capacidade, INSERTED.preco_diaria, INSERTED.foto_url
-     VALUES (@hotelId, @nome, @descricao, @capacidade, @precoDiaria, @fotoUrl)`,
+    `INSERT INTO categoria_quarto (hotel_id, nome, descricao, capacidade, preco_diaria)
+     OUTPUT INSERTED.id, INSERTED.hotel_id, INSERTED.nome, INSERTED.descricao, INSERTED.capacidade, INSERTED.preco_diaria
+     VALUES (@hotelId, @nome, @descricao, @capacidade, @precoDiaria)`,
     {
       hotelId,
       nome: String(nome).trim(),
       descricao,
       capacidade: capacidadeNumero,
       precoDiaria: precoDiariaNumero,
-      fotoUrl: normalizarFotoUrl(fotoUrl),
     }
   );
 
   return resultado.recordset[0];
 }
 
-export async function atualizarCategoriaQuarto({ hotelId, categoriaId, nome, descricao, capacidade, precoDiaria, fotoUrl }) {
+export async function atualizarCategoriaQuarto({ hotelId, categoriaId, nome, descricao, capacidade, precoDiaria }) {
   await validarHotelExiste(hotelId);
   await obterCategoriaDoHotel({ hotelId, categoriaId });
 
@@ -428,11 +360,6 @@ export async function atualizarCategoriaQuarto({ hotelId, categoriaId, nome, des
     params.precoDiaria = precoDiariaNumero;
   }
 
-  if (fotoUrl !== undefined) {
-    campos.push('foto_url = @fotoUrl');
-    params.fotoUrl = normalizarFotoUrl(fotoUrl);
-  }
-
   if (campos.length === 0) {
     throw new Error('Nenhum campo para atualizar');
   }
@@ -440,7 +367,7 @@ export async function atualizarCategoriaQuarto({ hotelId, categoriaId, nome, des
   const resultado = await queryWithParams(
     `UPDATE categoria_quarto
      SET ${campos.join(', ')}
-     OUTPUT INSERTED.id, INSERTED.hotel_id, INSERTED.nome, INSERTED.descricao, INSERTED.capacidade, INSERTED.preco_diaria, INSERTED.foto_url
+     OUTPUT INSERTED.id, INSERTED.hotel_id, INSERTED.nome, INSERTED.descricao, INSERTED.capacidade, INSERTED.preco_diaria
      WHERE id = @categoriaId
        AND hotel_id = @hotelId`,
     params
@@ -466,7 +393,6 @@ export async function deletarCategoriaQuarto({ hotelId, categoriaId }) {
 
 export async function listarQuartos({ hotelId, andarId, categoriaId, status }) {
   await validarHotelExiste(hotelId);
-  await garantirCamposManutencaoQuarto();
 
   const filtros = ['a.hotel_id = @hotelId'];
   const params = { hotelId };
@@ -496,20 +422,12 @@ export async function listarQuartos({ hotelId, andarId, categoriaId, status }) {
         q.capacidade,
         q.quantidade_camas,
         q.status,
-        q.fotos_json,
-        JSON_VALUE(q.fotos_json, '$[0]') AS foto_url,
-        q.status_anterior,
-        q.motivo_manutencao,
-        q.categoria_manutencao,
-        q.descricao_manutencao,
-        q.manutencao_aberta_em,
         q.andar_id,
         a.numero AS andar_numero,
         a.nome AS andar_nome,
         q.categoria_id,
         c.nome AS categoria_nome,
         c.descricao AS categoria_descricao,
-        c.foto_url AS categoria_foto_url,
         c.preco_diaria
      FROM quarto q
      INNER JOIN andar a ON a.id = q.andar_id
@@ -524,7 +442,6 @@ export async function listarQuartos({ hotelId, andarId, categoriaId, status }) {
 
 export async function obterQuartoPorId({ hotelId, quartoId }) {
   await validarHotelExiste(hotelId);
-  await garantirCamposManutencaoQuarto();
 
   const resultado = await queryWithParams(
     `SELECT TOP 1
@@ -534,20 +451,12 @@ export async function obterQuartoPorId({ hotelId, quartoId }) {
         q.capacidade,
         q.quantidade_camas,
         q.status,
-        q.fotos_json,
-        JSON_VALUE(q.fotos_json, '$[0]') AS foto_url,
-        q.status_anterior,
-        q.motivo_manutencao,
-        q.categoria_manutencao,
-        q.descricao_manutencao,
-        q.manutencao_aberta_em,
         q.andar_id,
         a.numero AS andar_numero,
         a.nome AS andar_nome,
         q.categoria_id,
         c.nome AS categoria_nome,
         c.descricao AS categoria_descricao,
-        c.foto_url AS categoria_foto_url,
         c.preco_diaria
      FROM quarto q
      INNER JOIN andar a ON a.id = q.andar_id
@@ -564,9 +473,8 @@ export async function obterQuartoPorId({ hotelId, quartoId }) {
   return resultado.recordset[0];
 }
 
-export async function criarQuarto({ hotelId, andarId, categoriaId, numero, descricao = null, capacidade, quantidadeCamas = null, status = 'livre', fotos }) {
+export async function criarQuarto({ hotelId, andarId, categoriaId, numero, descricao = null, capacidade, quantidadeCamas = null, status = 'livre' }) {
   await validarHotelExiste(hotelId);
-  await garantirCamposManutencaoQuarto();
 
   if (!andarId) {
     throw new Error('Campo obrigatório: andar_id');
@@ -594,7 +502,7 @@ export async function criarQuarto({ hotelId, andarId, categoriaId, numero, descr
     : Number(categoria.capacidade);
 
   const resultado = await queryWithParams(
-    `INSERT INTO quarto (andar_id, categoria_id, numero, descricao, capacidade, quantidade_camas, status, fotos_json)
+    `INSERT INTO quarto (andar_id, categoria_id, numero, descricao, capacidade, quantidade_camas, status)
      OUTPUT
        INSERTED.id,
        INSERTED.andar_id,
@@ -603,10 +511,8 @@ export async function criarQuarto({ hotelId, andarId, categoriaId, numero, descr
        INSERTED.descricao,
        INSERTED.capacidade,
        INSERTED.quantidade_camas,
-       INSERTED.status,
-       INSERTED.fotos_json,
-       JSON_VALUE(INSERTED.fotos_json, '$[0]') AS foto_url
-     VALUES (@andarId, @categoriaId, @numero, @descricao, @capacidade, @quantidadeCamas, @status, @fotosJson)`,
+       INSERTED.status
+     VALUES (@andarId, @categoriaId, @numero, @descricao, @capacidade, @quantidadeCamas, @status)`,
     {
       andarId,
       categoriaId,
@@ -615,31 +521,14 @@ export async function criarQuarto({ hotelId, andarId, categoriaId, numero, descr
       capacidade: capacidadeFinal,
       quantidadeCamas,
       status: normalizarStatus(status) || 'livre',
-      fotosJson: normalizarFotosJson(fotos),
     }
   );
 
   return resultado.recordset[0];
 }
 
-export async function atualizarQuarto({
-  hotelId,
-  quartoId,
-  andarId,
-  categoriaId,
-  numero,
-  descricao,
-  capacidade,
-  quantidadeCamas,
-  status,
-  statusAnterior,
-  motivoManutencao,
-  categoriaManutencao,
-  descricaoManutencao,
-  fotos,
-}) {
+export async function atualizarQuarto({ hotelId, quartoId, andarId, categoriaId, numero, descricao, capacidade, quantidadeCamas, status }) {
   await validarHotelExiste(hotelId);
-  await garantirCamposManutencaoQuarto();
   await obterQuartoPorId({ hotelId, quartoId });
 
   const campos = [];
@@ -680,44 +569,8 @@ export async function atualizarQuarto({
   }
 
   if (status !== undefined) {
-    const statusNormalizado = normalizarStatus(status);
     campos.push('status = @status');
-    params.status = statusNormalizado;
-
-    if (statusNormalizado === 'manutencao') {
-      if (statusAnterior !== undefined) {
-        campos.push('status_anterior = @statusAnterior');
-        params.statusAnterior = statusAnterior ? String(statusAnterior).trim().toLowerCase() : null;
-      }
-
-      if (motivoManutencao !== undefined) {
-        campos.push('motivo_manutencao = @motivoManutencao');
-        params.motivoManutencao = motivoManutencao ? String(motivoManutencao).trim() : null;
-      }
-
-      if (categoriaManutencao !== undefined) {
-        campos.push('categoria_manutencao = @categoriaManutencao');
-        params.categoriaManutencao = categoriaManutencao ? String(categoriaManutencao).trim() : null;
-      }
-
-      if (descricaoManutencao !== undefined) {
-        campos.push('descricao_manutencao = @descricaoManutencao');
-        params.descricaoManutencao = descricaoManutencao ? String(descricaoManutencao).trim() : null;
-      }
-
-      campos.push('manutencao_aberta_em = COALESCE(manutencao_aberta_em, SYSUTCDATETIME())');
-    } else {
-      campos.push('status_anterior = NULL');
-      campos.push('motivo_manutencao = NULL');
-      campos.push('categoria_manutencao = NULL');
-      campos.push('descricao_manutencao = NULL');
-      campos.push('manutencao_aberta_em = NULL');
-    }
-  }
-
-  if (fotos !== undefined) {
-    campos.push('fotos_json = @fotosJson');
-    params.fotosJson = normalizarFotosJson(fotos);
+    params.status = normalizarStatus(status);
   }
 
   if (campos.length === 0) {
@@ -735,14 +588,7 @@ export async function atualizarQuarto({
        INSERTED.descricao,
        INSERTED.capacidade,
        INSERTED.quantidade_camas,
-       INSERTED.status,
-      INSERTED.fotos_json,
-      JSON_VALUE(INSERTED.fotos_json, '$[0]') AS foto_url,
-       INSERTED.status_anterior,
-       INSERTED.motivo_manutencao,
-       INSERTED.categoria_manutencao,
-       INSERTED.descricao_manutencao,
-       INSERTED.manutencao_aberta_em
+       INSERTED.status
      WHERE id = @quartoId
        AND EXISTS (
          SELECT 1
@@ -776,72 +622,8 @@ export async function deletarQuarto({ hotelId, quartoId }) {
   return resultado.recordset[0];
 }
 
-export async function restaurarStatusQuarto({ hotelId, quartoId }) {
-  await validarHotelExiste(hotelId);
-  await garantirCamposManutencaoQuarto();
-
-  // Verifica se o quarto pertence ao hotel
-  const quartoRes = await queryWithParams(
-    `SELECT TOP 1 q.id, q.status
-     FROM quarto q
-     INNER JOIN andar a ON a.id = q.andar_id
-     WHERE q.id = @quartoId
-       AND a.hotel_id = @hotelId`,
-    { hotelId, quartoId }
-  );
-
-  if (quartoRes.recordset.length === 0) {
-    throw new Error('Quarto não encontrado');
-  }
-
-  // Verifica se existe reserva ativa hoje para o quarto
-  const reservaRes = await queryWithParams(
-    `SELECT TOP 1 r.id
-     FROM reserva r
-     INNER JOIN quarto q ON q.id = r.quarto_id
-     INNER JOIN andar a ON a.id = q.andar_id
-     WHERE r.quarto_id = @quartoId
-       AND a.hotel_id = @hotelId
-       AND CAST(r.data_checkin AS DATE) <= CAST(SYSUTCDATETIME() AS DATE)
-       AND CAST(r.data_checkout AS DATE) >= CAST(SYSUTCDATETIME() AS DATE)
-       AND LOWER(r.status) IN ('checkin', 'in-house', 'inhouse', 'confirmada', 'confirmado', 'pre-checkin')`,
-    { hotelId, quartoId }
-  );
-
-  const novoStatus = reservaRes.recordset.length > 0 ? 'ocupado' : 'livre';
-
-  const atualizado = await queryWithParams(
-    `UPDATE quarto
-     SET status = @novoStatus,
-         status_anterior = NULL,
-         motivo_manutencao = NULL,
-         categoria_manutencao = NULL,
-         descricao_manutencao = NULL,
-         manutencao_aberta_em = NULL
-     OUTPUT
-       INSERTED.id,
-       INSERTED.numero,
-       INSERTED.status
-     WHERE id = @quartoId
-       AND EXISTS (
-         SELECT 1
-         FROM andar a
-         WHERE a.id = quarto.andar_id
-           AND a.hotel_id = @hotelId
-       )`,
-    { novoStatus, quartoId, hotelId }
-  );
-
-  if (atualizado.recordset.length === 0) {
-    throw new Error('Quarto não encontrado');
-  }
-
-  return atualizado.recordset[0];
-}
-
 export async function obterArquiteturaHotel({ hotelId }) {
   await validarHotelExiste(hotelId);
-  await garantirCamposManutencaoQuarto();
 
   const andares = await queryWithParams(
     `SELECT id, hotel_id, numero, nome
@@ -859,11 +641,6 @@ export async function obterArquiteturaHotel({ hotelId }) {
         q.capacidade,
         q.quantidade_camas,
         q.status,
-        q.status_anterior,
-        q.motivo_manutencao,
-        q.categoria_manutencao,
-        q.descricao_manutencao,
-        q.manutencao_aberta_em,
         q.andar_id,
         q.categoria_id,
         c.nome AS categoria_nome,

@@ -13,6 +13,8 @@ function normalizarFotoUrl(valor) {
 }
 
 let usuarioPossuiColunaHotelId = null;
+let usuarioPossuiColunaFotoUrl = null;
+let usuarioPossuiColunaRoleId = null;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,6 +34,65 @@ async function tabelaUsuarioTemHotelId() {
 
   usuarioPossuiColunaHotelId = res.recordset.length > 0;
   return usuarioPossuiColunaHotelId;
+}
+
+/**
+ * Garante a existencia da coluna foto_url na tabela usuario.
+ * Em bases antigas sem a migration 010, cria a coluna antes de ler/escrever.
+ */
+async function garantirColunaFotoUrlUsuario() {
+  if (usuarioPossuiColunaFotoUrl === true) return true;
+
+  const res = await queryWithParams(
+    `SELECT TOP 1 1 AS existe
+       FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_NAME = 'usuario'
+        AND COLUMN_NAME = 'foto_url'`,
+    {}
+  );
+
+  const existe = res.recordset.length > 0;
+
+  if (!existe) {
+    await queryWithParams(
+      `ALTER TABLE [usuario]
+         ADD foto_url NVARCHAR(500) NULL`,
+      {}
+    );
+  }
+
+  usuarioPossuiColunaFotoUrl = true;
+  return true;
+}
+
+/**
+ * Garante a existencia da coluna role_id na tabela usuario.
+ * Algumas bases antigas nao possuem esse campo e a API passa a falhar ao
+ * tentar ler/atualizar perfis de usuario.
+ */
+async function garantirColunaRoleIdUsuario() {
+  if (usuarioPossuiColunaRoleId === true) return true;
+
+  const res = await queryWithParams(
+    `SELECT TOP 1 1 AS existe
+       FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_NAME = 'usuario'
+        AND COLUMN_NAME = 'role_id'`,
+    {}
+  );
+
+  const existe = res.recordset.length > 0;
+
+  if (!existe) {
+    await queryWithParams(
+      `ALTER TABLE [usuario]
+         ADD role_id UNIQUEIDENTIFIER NULL REFERENCES [role](id) ON DELETE SET NULL`,
+      {}
+    );
+  }
+
+  usuarioPossuiColunaRoleId = true;
+  return true;
 }
 
 /**
@@ -93,6 +154,8 @@ async function obterUsuarioDoHotel(userId, hotelId) {
 // ─── 1. Listar usuários do hotel ──────────────────────────────────────────────
 
 export async function listarUsuariosDoHotel({ hotelId }) {
+  await garantirColunaFotoUrlUsuario();
+  await garantirColunaRoleIdUsuario();
   const escopo = await obterEscopoDoUsuarioPorHotel(hotelId);
 
   const res = await queryWithParams(
@@ -122,6 +185,8 @@ export async function listarUsuariosDoHotel({ hotelId }) {
 // ─── 2. Obter usuário individual ──────────────────────────────────────────────
 
 export async function obterUsuarioDoHotelPorId({ hotelId, userId }) {
+  await garantirColunaFotoUrlUsuario();
+  await garantirColunaRoleIdUsuario();
   const escopo = await obterEscopoDoUsuarioPorHotel(hotelId);
 
   const res = await queryWithParams(
@@ -164,6 +229,8 @@ export async function atualizarUsuarioDoHotel({
   senhaAtual,
   novaSenha,
 }) {
+  await garantirColunaFotoUrlUsuario();
+  await garantirColunaRoleIdUsuario();
   const usuario      = await obterUsuarioDoHotel(userId, hotelId);
   const usuarioAuthId = usuario['usuario_auth_id'];
 

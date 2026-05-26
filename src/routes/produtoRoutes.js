@@ -1,5 +1,5 @@
 import express from 'express';
-import multer from 'multer';
+import { uploadImagemPerfil } from '../middlewares/uploadImagemPerfil.js';
 import {
   createProduto,
   getProduto,
@@ -9,12 +9,17 @@ import {
 } from '../controllers/Controller_Produto/produtoController.js';
 
 const router = express.Router();
-const upload = multer();
+const uploadProdutoImagem = uploadImagemPerfil.fields([
+  { name: 'imagemProduto', maxCount: 1 },
+  { name: 'foto', maxCount: 1 },
+  { name: 'imagem', maxCount: 1 },
+  { name: 'arquivo', maxCount: 1 },
+]);
 
 router.get('/', listProdutos);
-router.post('/', upload.none(), createProduto);
+router.post('/', uploadProdutoImagem, createProduto);
 router.get('/:produtoId', getProduto);
-router.patch('/:produtoId', upload.none(), updateProduto);
+router.patch('/:produtoId', uploadProdutoImagem, updateProduto);
 router.delete('/:produtoId', removeProduto);
 
 export default router;

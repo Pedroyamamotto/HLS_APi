@@ -9,6 +9,29 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function getMissingSmtpVars() {
+  const missing = [];
+
+  if (!process.env.SMTP_HOST) missing.push('SMTP_HOST');
+  if (process.env.SMTP_USER && !process.env.SMTP_PASSWORD) missing.push('SMTP_PASSWORD');
+  if (!process.env.SMTP_USER && process.env.SMTP_PASSWORD) missing.push('SMTP_USER');
+
+  return missing;
+}
+
+function ensureSmtpReady(contexto) {
+  const missing = getMissingSmtpVars();
+  if (missing.length === 0) return true;
+
+  const details = `Configuração SMTP incompleta (${missing.join(', ')}) durante ${contexto}.`;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(details);
+  }
+
+  console.warn(`${details} Envio de e-mail desativado neste ambiente.`);
+  return false;
+}
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT || 587),
@@ -34,7 +57,7 @@ function renderTemplate(template, values) {
 }
 
 export async function enviarEmailBoasVindas({ email, nomeCompleto }) {
-  if (!process.env.SMTP_HOST) {
+  if (!ensureSmtpReady('enviarEmailBoasVindas')) {
     console.log(`[SMTP desativado] Boas-vindas para ${email}`);
     return { skipped: true };
   }
@@ -55,7 +78,7 @@ export async function enviarEmailBoasVindas({ email, nomeCompleto }) {
 }
 
 export async function enviarCodigoVerificacao({ email, nomeCompleto, codigo, tipo = 'EmailVerification' }) {
-  if (!process.env.SMTP_HOST) {
+  if (!ensureSmtpReady('enviarCodigoVerificacao')) {
     console.log(`[SMTP desativado] Código para ${email}: ${codigo}`);
     return { skipped: true };
   }

@@ -225,7 +225,8 @@ export async function obterDetalhesLisensa({ numeroLicensa }) {
         h.id AS hotel_id,
         h.nome AS hotel_nome,
         h.moeda_local,
-        h.endereco
+        h.endereco,
+        h.foto_url
      FROM licenca l
      LEFT JOIN assinatura a ON a.id = l.assinatura_id
      LEFT JOIN hotel h ON h.assinatura_id = a.id
@@ -267,6 +268,7 @@ export async function listarHoteisDaLisensa({ numeroLicensa }) {
         h.nome,
         h.moeda_local,
         h.endereco,
+      h.foto_url,
         h.assinatura_id
      FROM hotel h
      WHERE h.assinatura_id = @assinaturaId

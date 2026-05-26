@@ -23,9 +23,6 @@ const io = new Server(httpServer, {
   },
 });
 
-// Evita 304 em endpoints da API e força payload atualizado para o frontend.
-app.set('etag', false);
-
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

@@ -22,6 +22,38 @@ function erroDuplicado(erro) {
   return erro?.message?.toLowerCase().includes('duplicado');
 }
 
+function extrairFotoUrl(req) {
+  const bodyCandidates = [
+    req.body?.foto_url,
+    req.body?.fotoUrl,
+    req.body?.FotoUrl,
+    req.body?.image_url,
+    req.body?.imageUrl,
+  ];
+
+  for (const value of bodyCandidates) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  const files = req.files;
+  if (req.file?.filename) {
+    return `/uploads/${req.file.filename}`;
+  }
+
+  if (files && typeof files === 'object') {
+    for (const fieldName of Object.keys(files)) {
+      const fieldFiles = files[fieldName];
+      if (Array.isArray(fieldFiles) && fieldFiles[0]?.filename) {
+        return `/uploads/${fieldFiles[0].filename}`;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 export async function listProdutos(req, res) {
   try {
     const dados = await listarProdutos({ categoria: req.query.categoria });
@@ -50,6 +82,7 @@ export async function createProduto(req, res) {
       categoria: req.body.categoria ?? req.body.Categoria ?? req.body.category ?? req.body.productCategory ?? req.body.product_category,
       precoCusto: req.body.preco_custo ?? req.body.precoCusto ?? req.body.costPrice ?? req.body.cost_price,
       precoVenda: req.body.preco_venda ?? req.body.precoVenda ?? req.body.salePrice ?? req.body.sale_price,
+      fotoUrl: extrairFotoUrl(req),
     });
     return res.status(201).json({ sucesso: true, dados });
   } catch (erro) {
@@ -68,6 +101,7 @@ export async function updateProduto(req, res) {
       categoria: req.body.categoria ?? req.body.Categoria ?? req.body.category ?? req.body.productCategory ?? req.body.product_category,
       precoCusto: req.body.preco_custo ?? req.body.precoCusto ?? req.body.costPrice ?? req.body.cost_price,
       precoVenda: req.body.preco_venda ?? req.body.precoVenda ?? req.body.salePrice ?? req.body.sale_price,
+      fotoUrl: extrairFotoUrl(req),
     });
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {

@@ -31,6 +31,38 @@ function conflito(erro) {
   return erro?.message?.toLowerCase().includes('já registrada') || erro?.message?.toLowerCase().includes('ja registrada');
 }
 
+function extrairFotoUrl(req) {
+  const bodyCandidates = [
+    req.body?.foto_url,
+    req.body?.fotoUrl,
+    req.body?.FotoUrl,
+    req.body?.image_url,
+    req.body?.imageUrl,
+  ];
+
+  for (const value of bodyCandidates) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  const files = req.files;
+  if (req.file?.filename) {
+    return `/uploads/${req.file.filename}`;
+  }
+
+  if (files && typeof files === 'object') {
+    for (const fieldName of Object.keys(files)) {
+      const fieldFiles = files[fieldName];
+      if (Array.isArray(fieldFiles) && fieldFiles[0]?.filename) {
+        return `/uploads/${fieldFiles[0].filename}`;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 // HOTEL CRUD
 export async function listHotels(req, res) {
   try {
@@ -60,10 +92,11 @@ export async function createHotel(req, res) {
     const endereco = req.body.endereco ?? req.body.Endereco ?? null;
     const assinaturaId = req.body.assinatura_id ?? req.body.AssinaturaId ?? null;
     const politicaId = req.body.politica_id ?? req.body.PoliticaId ?? null;
+    const fotoUrl = extrairFotoUrl(req);
     if (!nome || !moedaLocal) {
       return res.status(400).json({ erro: 'Campos obrigatorios: nome, moeda_local' });
     }
-    const dados = await criarHotel({ nome, moedaLocal, endereco, assinaturaId, politicaId });
+    const dados = await criarHotel({ nome, moedaLocal, endereco, assinaturaId, politicaId, fotoUrl });
     return res.status(201).json({ sucesso: true, dados });
   } catch (erro) {
     console.error('Erro ao criar hotel:', erro?.message);
@@ -80,6 +113,7 @@ export async function updateHotel(req, res) {
       endereco: req.body.endereco ?? req.body.Endereco,
       assinaturaId: req.body.assinatura_id ?? req.body.AssinaturaId,
       politicaId: req.body.politica_id ?? req.body.PoliticaId,
+      fotoUrl: extrairFotoUrl(req),
     });
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {

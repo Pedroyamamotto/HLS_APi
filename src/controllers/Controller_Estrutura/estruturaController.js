@@ -15,7 +15,6 @@ import {
   obterArquiteturaHotel,
   obterCategoriaQuartoPorId,
   obterQuartoPorId,
-  restaurarStatusQuarto,
 } from '../../services/estruturaService.js';
 
 function naoEncontrado(erro) {
@@ -164,7 +163,6 @@ export async function createCategoria(req, res) {
     const descricao = req.body.descricao ?? req.body.Descricao ?? req.body.internalDescription ?? req.body.internal_description ?? null;
     const capacidade = req.body.capacidade ?? req.body.Capacidade ?? req.body.maxOccupancy ?? req.body.max_occupancy;
     const precoDiaria = req.body.preco_diaria ?? req.body.PrecoDiaria ?? req.body.precoDiaria ?? req.body.dailyRate ?? req.body.daily_rate;
-    const fotoUrl = req.body.foto_url ?? req.body.fotoUrl;
 
     const dados = await criarCategoriaQuarto({
       hotelId: req.params.hotelId,
@@ -172,7 +170,6 @@ export async function createCategoria(req, res) {
       descricao,
       capacidade,
       precoDiaria,
-      fotoUrl,
     });
     return res.status(201).json({ sucesso: true, dados });
   } catch (erro) {
@@ -198,7 +195,6 @@ export async function updateCategoria(req, res) {
     const descricao = req.body.descricao ?? req.body.internalDescription ?? req.body.internal_description;
     const capacidade = req.body.capacidade ?? req.body.maxOccupancy ?? req.body.max_occupancy;
     const precoDiaria = req.body.preco_diaria ?? req.body.precoDiaria ?? req.body.dailyRate ?? req.body.daily_rate;
-    const fotoUrl = req.body.foto_url ?? req.body.fotoUrl;
 
     const dados = await atualizarCategoriaQuarto({
       hotelId: req.params.hotelId,
@@ -207,7 +203,6 @@ export async function updateCategoria(req, res) {
       descricao,
       capacidade,
       precoDiaria,
-      fotoUrl,
     });
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {
@@ -275,7 +270,6 @@ export async function createQuarto(req, res) {
       capacidade: req.body.capacidade,
       quantidadeCamas: req.body.quantidade_camas ?? req.body.quantidadeCamas ?? null,
       status: req.body.status ?? 'livre',
-      fotos: req.body.fotos,
     });
     return res.status(201).json({ sucesso: true, dados });
   } catch (erro) {
@@ -299,11 +293,6 @@ export async function updateQuarto(req, res) {
       capacidade: req.body.capacidade,
       quantidadeCamas: req.body.quantidade_camas,
       status: req.body.status,
-      statusAnterior: req.body.status_anterior ?? req.body.statusAnterior,
-      motivoManutencao: req.body.motivo_manutencao ?? req.body.motivoManutencao,
-      categoriaManutencao: req.body.categoria_manutencao ?? req.body.categoriaManutencao,
-      descricaoManutencao: req.body.descricao_manutencao ?? req.body.descricaoManutencao,
-      fotos: req.body.fotos,
     });
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {
@@ -326,19 +315,5 @@ export async function removeQuarto(req, res) {
     console.error('Erro ao remover quarto:', erro?.message);
     if (naoEncontrado(erro)) return res.status(404).json({ erro: erro.message });
     return res.status(500).json({ erro: 'Erro ao remover quarto' });
-  }
-}
-
-export async function restaurarQuarto(req, res) {
-  try {
-    const dados = await restaurarStatusQuarto({
-      hotelId: req.params.hotelId,
-      quartoId: req.params.quartoId,
-    });
-    return res.status(200).json({ sucesso: true, dados });
-  } catch (erro) {
-    console.error('Erro ao restaurar status do quarto:', erro?.message);
-    if (naoEncontrado(erro)) return res.status(404).json({ erro: erro.message });
-    return res.status(500).json({ erro: 'Erro ao restaurar status do quarto' });
   }
 }
