@@ -94,7 +94,8 @@ CREATE TABLE Hotel (
     politica_id UUID REFERENCES Politica(id) ON DELETE SET NULL,
     nome VARCHAR(150) NOT NULL,
     moeda_local VARCHAR(10) NOT NULL,
-    endereco VARCHAR(255)
+    endereco VARCHAR(255),
+    foto_url TEXT
 );
 
 CREATE TABLE Restricao (

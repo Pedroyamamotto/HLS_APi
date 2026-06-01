@@ -38,6 +38,63 @@ function erroConflitoFk(erro) {
   return mensagem.includes('reference constraint') || mensagem.includes('foreign key');
 }
 
+function extrairFotoUrl(req) {
+  const bodyCandidates = [
+    req.body?.foto_url,
+    req.body?.fotoUrl,
+    req.body?.FotoUrl,
+    req.body?.image_url,
+    req.body?.imageUrl,
+    req.body?.imagem_url,
+    req.body?.imagemUrl,
+  ];
+
+  for (const value of bodyCandidates) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  const fotos = req.body?.fotos;
+  if (Array.isArray(fotos)) {
+    const firstPhoto = fotos.find((value) => typeof value === 'string' && value.trim());
+    if (firstPhoto) return firstPhoto.trim();
+  }
+
+  if (typeof fotos === 'string' && fotos.trim()) {
+    const trimmed = fotos.trim();
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        const firstPhoto = parsed.find((value) => typeof value === 'string' && value.trim());
+        if (firstPhoto) return firstPhoto.trim();
+      }
+    } catch {
+      return trimmed;
+    }
+  }
+
+  const file =
+    req.file ||
+    req.files?.imagemCategoria?.[0] ||
+    req.files?.thumbnail?.[0] ||
+    req.files?.imagemQuarto?.[0] ||
+    req.files?.foto?.[0] ||
+    req.files?.imagem?.[0] ||
+    req.files?.arquivo?.[0] ||
+    req.files?.image?.[0];
+
+  if (!file) return undefined;
+
+  if (file.buffer) {
+    const base64 = file.buffer.toString('base64');
+    const mimeType = file.mimetype || 'image/png';
+    return `data:${mimeType};base64,${base64}`;
+  }
+
+  return undefined;
+}
+
 export async function getArquiteturaHotel(req, res) {
   try {
     const dados = await obterArquiteturaHotel({ hotelId: req.params.hotelId });
@@ -163,6 +220,7 @@ export async function createCategoria(req, res) {
     const descricao = req.body.descricao ?? req.body.Descricao ?? req.body.internalDescription ?? req.body.internal_description ?? null;
     const capacidade = req.body.capacidade ?? req.body.Capacidade ?? req.body.maxOccupancy ?? req.body.max_occupancy;
     const precoDiaria = req.body.preco_diaria ?? req.body.PrecoDiaria ?? req.body.precoDiaria ?? req.body.dailyRate ?? req.body.daily_rate;
+    const fotoUrl = extrairFotoUrl(req);
 
     const dados = await criarCategoriaQuarto({
       hotelId: req.params.hotelId,
@@ -170,6 +228,7 @@ export async function createCategoria(req, res) {
       descricao,
       capacidade,
       precoDiaria,
+      fotoUrl,
     });
     return res.status(201).json({ sucesso: true, dados });
   } catch (erro) {
@@ -195,6 +254,7 @@ export async function updateCategoria(req, res) {
     const descricao = req.body.descricao ?? req.body.internalDescription ?? req.body.internal_description;
     const capacidade = req.body.capacidade ?? req.body.maxOccupancy ?? req.body.max_occupancy;
     const precoDiaria = req.body.preco_diaria ?? req.body.precoDiaria ?? req.body.dailyRate ?? req.body.daily_rate;
+    const fotoUrl = extrairFotoUrl(req);
 
     const dados = await atualizarCategoriaQuarto({
       hotelId: req.params.hotelId,
@@ -203,6 +263,7 @@ export async function updateCategoria(req, res) {
       descricao,
       capacidade,
       precoDiaria,
+      fotoUrl,
     });
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {
@@ -270,6 +331,7 @@ export async function createQuarto(req, res) {
       capacidade: req.body.capacidade,
       quantidadeCamas: req.body.quantidade_camas ?? req.body.quantidadeCamas ?? null,
       status: req.body.status ?? 'livre',
+      fotoUrl: extrairFotoUrl(req),
     });
     return res.status(201).json({ sucesso: true, dados });
   } catch (erro) {
@@ -293,6 +355,7 @@ export async function updateQuarto(req, res) {
       capacidade: req.body.capacidade,
       quantidadeCamas: req.body.quantidade_camas,
       status: req.body.status,
+      fotoUrl: extrairFotoUrl(req),
     });
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {

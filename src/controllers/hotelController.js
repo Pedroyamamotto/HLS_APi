@@ -1,4 +1,4 @@
-﻿import {
+import {
   atualizarHotel,
   criarHotel,
   deletarHotel,
@@ -22,13 +22,17 @@
 
 // helpers
 function naoEncontrado(erro) {
-  return erro?.message?.toLowerCase().includes('nao encontrad') || erro?.message?.toLowerCase().includes('não encontrad');
+  return erro?.message?.toLowerCase().includes('nao encontrad') ||
+    erro?.message?.toLowerCase().includes('n�o encontrad');
 }
+
 function erroNenhumCampo(erro) {
   return erro?.message?.includes('Nenhum campo');
 }
+
 function conflito(erro) {
-  return erro?.message?.toLowerCase().includes('já registrada') || erro?.message?.toLowerCase().includes('ja registrada');
+  return erro?.message?.toLowerCase().includes('j� registrada') ||
+    erro?.message?.toLowerCase().includes('ja registrada');
 }
 
 function extrairFotoUrl(req) {
@@ -38,6 +42,8 @@ function extrairFotoUrl(req) {
     req.body?.FotoUrl,
     req.body?.image_url,
     req.body?.imageUrl,
+    req.body?.logo_url,
+    req.body?.logoUrl,
   ];
 
   for (const value of bodyCandidates) {
@@ -46,18 +52,22 @@ function extrairFotoUrl(req) {
     }
   }
 
-  const files = req.files;
-  if (req.file?.filename) {
-    return `/uploads/${req.file.filename}`;
-  }
+  const file =
+    req.file ||
+    req.files?.foto?.[0] ||
+    req.files?.imagem?.[0] ||
+    req.files?.arquivo?.[0] ||
+    req.files?.logo?.[0] ||
+    req.files?.fotoHotel?.[0] ||
+    req.files?.image?.[0] ||
+    req.files?.imagemHotel?.[0];
 
-  if (files && typeof files === 'object') {
-    for (const fieldName of Object.keys(files)) {
-      const fieldFiles = files[fieldName];
-      if (Array.isArray(fieldFiles) && fieldFiles[0]?.filename) {
-        return `/uploads/${fieldFiles[0].filename}`;
-      }
-    }
+  if (!file) return undefined;
+
+  if (file.buffer) {
+    const base64 = file.buffer.toString('base64');
+    const mimeType = file.mimetype || 'image/png';
+    return `data:${mimeType};base64,${base64}`;
   }
 
   return undefined;
@@ -93,10 +103,20 @@ export async function createHotel(req, res) {
     const assinaturaId = req.body.assinatura_id ?? req.body.AssinaturaId ?? null;
     const politicaId = req.body.politica_id ?? req.body.PoliticaId ?? null;
     const fotoUrl = extrairFotoUrl(req);
+
     if (!nome || !moedaLocal) {
       return res.status(400).json({ erro: 'Campos obrigatorios: nome, moeda_local' });
     }
-    const dados = await criarHotel({ nome, moedaLocal, endereco, assinaturaId, politicaId, fotoUrl });
+
+    const dados = await criarHotel({
+      nome,
+      moedaLocal,
+      endereco,
+      assinaturaId,
+      politicaId,
+      fotoUrl,
+    });
+
     return res.status(201).json({ sucesso: true, dados });
   } catch (erro) {
     console.error('Erro ao criar hotel:', erro?.message);
@@ -115,9 +135,21 @@ export async function updateHotel(req, res) {
       politicaId: req.body.politica_id ?? req.body.PoliticaId,
       fotoUrl: extrairFotoUrl(req),
     });
+
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {
-    console.error('Erro ao atualizar hotel:', erro?.message);
+    console.error('Erro ao atualizar hotel:', erro);
+    // Em ambiente de desenvolvimento, retorne a mensagem e stack completa para diagnóstico
+    if (process.env.NODE_ENV !== 'production') {
+      const payload = {
+        erro: erro?.message || 'Erro desconhecido',
+        stack: erro?.stack || null,
+      };
+      if (erroNenhumCampo(erro)) return res.status(400).json(payload);
+      if (naoEncontrado(erro)) return res.status(404).json(payload);
+      return res.status(500).json(payload);
+    }
+
     if (erroNenhumCampo(erro)) return res.status(400).json({ erro: erro.message });
     if (naoEncontrado(erro)) return res.status(404).json({ erro: erro.message });
     return res.status(500).json({ erro: 'Erro ao atualizar hotel' });
@@ -139,7 +171,11 @@ export async function linkHotelToLisensa(req, res) {
   try {
     const hotelId = req.params.id;
     const numeroLicensa = req.body.numero_licenca ?? req.body.numeroLicensa;
-    if (!numeroLicensa) return res.status(400).json({ erro: 'numero_licenca e obrigatorio' });
+
+    if (!numeroLicensa) {
+      return res.status(400).json({ erro: 'numero_licenca e obrigatorio' });
+    }
+
     const dados = await vincularHotelComLisensa({
       hotelId,
       numeroLicensa,
@@ -148,11 +184,14 @@ export async function linkHotelToLisensa(req, res) {
       valorMensal: req.body.valor_mensal ?? 0,
       statusAssinatura: req.body.status_assinatura ?? 'ativo',
     });
+
     return res.status(200).json({ sucesso: true, mensagem: 'Hotel vinculado com sucesso', dados });
   } catch (erro) {
     console.error('Erro ao vincular hotel:', erro?.message);
     if (naoEncontrado(erro)) return res.status(404).json({ erro: erro.message });
-    if (erro?.message?.includes('assinaturas diferentes')) return res.status(409).json({ erro: erro.message });
+    if (erro?.message?.includes('assinaturas diferentes')) {
+      return res.status(409).json({ erro: erro.message });
+    }
     return res.status(500).json({ erro: 'Erro ao vincular hotel' });
   }
 }
@@ -179,6 +218,7 @@ export async function createPolitica(req, res) {
       horarioCheckOut: req.body.horario_check_out ?? null,
       carenciaMinutos: req.body.carencia_minutos ?? null,
     });
+
     return res.status(201).json({ sucesso: true, dados });
   } catch (erro) {
     console.error('Erro ao criar politica:', erro?.message);
@@ -197,12 +237,15 @@ export async function updatePolitica(req, res) {
       horarioCheckOut: req.body.horario_check_out,
       carenciaMinutos: req.body.carencia_minutos,
     });
+
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {
     console.error('Erro ao atualizar politica:', erro?.message);
     if (erroNenhumCampo(erro)) return res.status(400).json({ erro: erro.message });
     if (naoEncontrado(erro)) return res.status(404).json({ erro: erro.message });
-    if (erro?.message?.includes('nao possui politica') || erro?.message?.includes('não possui política')) return res.status(404).json({ erro: erro.message });
+    if (erro?.message?.includes('nao possui politica') || erro?.message?.includes('n�o possui pol�tica')) {
+      return res.status(404).json({ erro: erro.message });
+    }
     return res.status(500).json({ erro: 'Erro ao atualizar politica' });
   }
 }
@@ -214,7 +257,9 @@ export async function deletePolitica(req, res) {
   } catch (erro) {
     console.error('Erro ao deletar politica:', erro?.message);
     if (naoEncontrado(erro)) return res.status(404).json({ erro: erro.message });
-    if (erro?.message?.includes('nao possui politica') || erro?.message?.includes('não possui política')) return res.status(404).json({ erro: erro.message });
+    if (erro?.message?.includes('nao possui politica') || erro?.message?.includes('n�o possui pol�tica')) {
+      return res.status(404).json({ erro: erro.message });
+    }
     return res.status(500).json({ erro: 'Erro ao deletar politica' });
   }
 }
@@ -239,11 +284,12 @@ export async function createRefeicao(req, res) {
       horarioFim: req.body.horario_fim ?? null,
       habilitada: req.body.habilitada,
     });
+
     return res.status(201).json({ sucesso: true, dados });
   } catch (erro) {
     console.error('Erro ao criar refeicao:', erro?.message);
     if (naoEncontrado(erro)) return res.status(404).json({ erro: erro.message });
-    if (erro?.message?.includes('Já existe')) return res.status(409).json({ erro: erro.message });
+    if (erro?.message?.includes('J� existe')) return res.status(409).json({ erro: erro.message });
     return res.status(500).json({ erro: 'Erro ao criar refeicao' });
   }
 }
@@ -251,6 +297,7 @@ export async function createRefeicao(req, res) {
 export async function updateRefeicao(req, res) {
   try {
     console.log('[updateRefeicao] hotelId=%s refeicaoId=%s body=%j', req.params.id, req.params.refeicaoId, req.body);
+
     const dados = await atualizarRefeicaoDoHotel({
       hotelId: req.params.id,
       refeicaoId: req.params.refeicaoId,
@@ -259,12 +306,15 @@ export async function updateRefeicao(req, res) {
       horarioFim: req.body.horario_fim,
       habilitada: req.body.habilitada,
     });
+
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {
     console.error('Erro ao atualizar refeicao:', erro?.message);
-    if (naoEncontrado(erro) || erro?.message?.includes('Refeição não encontrada')) return res.status(404).json({ erro: erro.message });
+    if (naoEncontrado(erro) || erro?.message?.includes('Refei��o n�o encontrada')) {
+      return res.status(404).json({ erro: erro.message });
+    }
     if (erroNenhumCampo(erro)) return res.status(400).json({ erro: erro.message });
-    if (erro?.message?.includes('Já existe')) return res.status(409).json({ erro: erro.message });
+    if (erro?.message?.includes('J� existe')) return res.status(409).json({ erro: erro.message });
     return res.status(500).json({ erro: 'Erro ao atualizar refeicao' });
   }
 }
@@ -272,14 +322,18 @@ export async function updateRefeicao(req, res) {
 export async function deleteRefeicao(req, res) {
   try {
     console.log('[deleteRefeicao] hotelId=%s refeicaoId=%s', req.params.id, req.params.refeicaoId);
+
     const dados = await deletarRefeicaoDoHotel({
       hotelId: req.params.id,
       refeicaoId: req.params.refeicaoId,
     });
+
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {
     console.error('Erro ao deletar refeicao:', erro?.message);
-    if (naoEncontrado(erro) || erro?.message?.includes('Refeição não encontrada')) return res.status(404).json({ erro: erro.message });
+    if (naoEncontrado(erro) || erro?.message?.includes('Refei��o n�o encontrada')) {
+      return res.status(404).json({ erro: erro.message });
+    }
     return res.status(500).json({ erro: 'Erro ao deletar refeicao' });
   }
 }
@@ -299,7 +353,12 @@ export async function markRefeicaoPresence(req, res) {
 
     const presente = req.body.presente === undefined
       ? true
-      : (req.body.presente === true || req.body.presente === 'true' || req.body.presente === 1 || req.body.presente === '1');
+      : (
+          req.body.presente === true ||
+          req.body.presente === 'true' ||
+          req.body.presente === 1 ||
+          req.body.presente === '1'
+        );
 
     const dados = await marcarPresencaHospedeNaRefeicao({
       hotelId: req.params.id,
@@ -337,6 +396,7 @@ export async function savePoliciesTiming(req, res) {
       politica: req.body.politica,
       refeicoes: req.body.refeicoes,
     });
+
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {
     console.error('Erro ao salvar policies timing:', erro?.message);
@@ -351,9 +411,9 @@ export async function getCardEncoderIntegration(req, res) {
     const dados = await obterIntegracaoCardEncoderDoHotel({ hotelId: req.params.id });
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {
-    console.error('Erro ao buscar integração card encoder:', erro?.message);
+    console.error('Erro ao buscar integra��o card encoder:', erro?.message);
     if (naoEncontrado(erro)) return res.status(404).json({ erro: erro.message });
-    return res.status(500).json({ erro: 'Erro ao buscar integração card encoder' });
+    return res.status(500).json({ erro: 'Erro ao buscar integra��o card encoder' });
   }
 }
 
@@ -367,11 +427,11 @@ export async function saveCardEncoderIntegration(req, res) {
 
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {
-    console.error('Erro ao salvar integração card encoder:', erro?.message);
+    console.error('Erro ao salvar integra��o card encoder:', erro?.message);
     if (naoEncontrado(erro)) return res.status(404).json({ erro: erro.message });
-    if (erro?.message?.includes('obrigatório') || erro?.message?.includes('maior que zero')) {
+    if (erro?.message?.includes('obrigat�rio') || erro?.message?.includes('maior que zero')) {
       return res.status(400).json({ erro: erro.message });
     }
-    return res.status(500).json({ erro: 'Erro ao salvar integração card encoder' });
+    return res.status(500).json({ erro: 'Erro ao salvar integra��o card encoder' });
   }
 }

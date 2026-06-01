@@ -120,7 +120,8 @@ CREATE TABLE hotel (
   politica_id UNIQUEIDENTIFIER NULL REFERENCES politica(id) ON DELETE SET NULL,
   nome NVARCHAR(150) NOT NULL,
   moeda_local NVARCHAR(10) NOT NULL,
-  endereco NVARCHAR(255)
+  endereco NVARCHAR(255),
+  foto_url NVARCHAR(MAX) NULL
 );
 
 CREATE TABLE [usuario] (

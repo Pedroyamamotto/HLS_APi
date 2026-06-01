@@ -1,4 +1,4 @@
-ï»¿import { spawnSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -46,7 +46,7 @@ function runSqlcmd(config, sqlContent, dry = false) {
     console.log('[DRY-RUN] sqlcmd would execute:\n', sqlContent);
     return true;
   }
-  // Escrever SQL em arquivo temporÃ¡rio para evitar problemas de escapeamento
+  // Escrever SQL em arquivo temporário para evitar problemas de escapeamento
   const tmpFile = path.join(__dirname, `tmp_${Date.now()}.sql`);
   fs.writeFileSync(tmpFile, sqlContent, 'utf8');
   
@@ -66,7 +66,7 @@ function runSqlcmd(config, sqlContent, dry = false) {
   console.log(`[sqlcmd] Connecting to ${config.host}:${config.port}...`);
   const result = spawnSync('sqlcmd', args, { stdio: 'inherit', shell: false });
   
-  // Limpar arquivo temporÃ¡rio
+  // Limpar arquivo temporário
   try { fs.unlinkSync(tmpFile); } catch (e) {}
   
   return result.status === 0;
@@ -132,7 +132,7 @@ async function applyMigrations(config, direction = 'up', filePath = null, dry = 
   } else {
     const allFiles = fs.readdirSync(migrationsDir).filter(f => {
       if (config.type === 'mssql') {
-        // MSSQL deve aplicar tanto arquivos dialeto-especÃ­ficos quanto genÃ©ricos (*.sql).
+        // MSSQL deve aplicar tanto arquivos dialeto-específicos quanto genéricos (*.sql).
         return f.includes('.mssql.') || (!f.includes('.pgsql.') && !f.includes('.mssql.') && f.endsWith('.sql'));
       }
       return f.includes('.pgsql.');

@@ -204,6 +204,7 @@ async function iniciarServidorEmbutido() {
 
   process.env.PORT = '0';
   const servidor = await import('../src/server/server.js');
+  await servidor.startServer(0);
   httpServerRuntime = servidor.httpServer;
 
   const endereco = httpServerRuntime.address();

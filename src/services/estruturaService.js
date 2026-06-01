@@ -1,8 +1,72 @@
 import { queryWithParams } from '../utils/database.js';
+import fs from 'fs/promises';
+import path from 'path';
 
 function normalizarStatus(status) {
   if (!status) return null;
   return String(status).trim().toLowerCase();
+}
+
+function normalizarFotoUrl(valor) {
+  if (valor === undefined) return null;
+  if (valor === null) return null;
+
+  const url = String(valor).trim();
+  return url || null;
+}
+
+function dataUrlFromBuffer(buffer, mimeType = 'image/png') {
+  return `data:${mimeType};base64,${buffer.toString('base64')}`;
+}
+
+function mimeTypeFromFilePath(filePath) {
+  const ext = path.extname(filePath).toLowerCase().replace('.', '');
+
+  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+  if (ext === 'png') return 'image/png';
+  if (ext === 'gif') return 'image/gif';
+  if (ext === 'webp') return 'image/webp';
+
+  return 'image/png';
+}
+
+let colunaFotoUrlQuartoGarantida = false;
+let colunaFotoUrlCategoriaGarantida = false;
+
+async function garantirColunaFotoUrlQuarto() {
+  if (colunaFotoUrlQuartoGarantida) return;
+
+  await queryWithParams(
+    `IF OBJECT_ID('quarto', 'U') IS NOT NULL
+     BEGIN
+       IF COL_LENGTH('quarto', 'foto_url') IS NULL
+         ALTER TABLE quarto ADD foto_url NVARCHAR(MAX) NULL;
+
+       IF COL_LENGTH('quarto', 'foto_url') IS NOT NULL
+         ALTER TABLE quarto ALTER COLUMN foto_url NVARCHAR(MAX) NULL;
+     END`,
+    {}
+  );
+
+  colunaFotoUrlQuartoGarantida = true;
+}
+
+async function garantirColunaFotoUrlCategoria() {
+  if (colunaFotoUrlCategoriaGarantida) return;
+
+  await queryWithParams(
+    `IF OBJECT_ID('categoria_quarto', 'U') IS NOT NULL
+     BEGIN
+       IF COL_LENGTH('categoria_quarto', 'foto_url') IS NULL
+         ALTER TABLE categoria_quarto ADD foto_url NVARCHAR(MAX) NULL;
+
+       IF COL_LENGTH('categoria_quarto', 'foto_url') IS NOT NULL
+         ALTER TABLE categoria_quarto ALTER COLUMN foto_url NVARCHAR(MAX) NULL;
+     END`,
+    {}
+  );
+
+  colunaFotoUrlCategoriaGarantida = true;
 }
 
 function normalizarNumeroEntrada(valor) {
@@ -52,7 +116,7 @@ async function obterAndarDoHotel({ hotelId, andarId }) {
 
 async function obterCategoriaDoHotel({ hotelId, categoriaId }) {
   const resultado = await queryWithParams(
-    `SELECT TOP 1 id, hotel_id, nome, descricao, capacidade, preco_diaria
+    `SELECT TOP 1 id, hotel_id, nome, descricao, capacidade, preco_diaria, foto_url
      FROM categoria_quarto
      WHERE id = @categoriaId
        AND hotel_id = @hotelId`,
@@ -236,6 +300,7 @@ export async function deletarAndar({ hotelId, andarId }) {
 
 export async function listarCategoriasQuarto({ hotelId }) {
   await validarHotelExiste(hotelId);
+  await garantirColunaFotoUrlCategoria();
 
   const resultado = await queryWithParams(
     `SELECT
@@ -245,20 +310,68 @@ export async function listarCategoriasQuarto({ hotelId }) {
         c.descricao,
         c.capacidade,
         c.preco_diaria,
-        COUNT(q.id) AS total_quartos
+        COUNT(q.id) AS total_quartos,
+        COALESCE(
+          c.foto_url,
+          (SELECT TOP 1 q.foto_url FROM quarto q WHERE q.categoria_id = c.id AND q.foto_url IS NOT NULL)
+        ) AS foto_url
      FROM categoria_quarto c
      LEFT JOIN quarto q ON q.categoria_id = c.id
      WHERE c.hotel_id = @hotelId
-     GROUP BY c.id, c.hotel_id, c.nome, c.descricao, c.capacidade, c.preco_diaria
+     GROUP BY c.id, c.hotel_id, c.nome, c.descricao, c.capacidade, c.preco_diaria, c.foto_url
      ORDER BY c.nome`,
     { hotelId }
   );
 
-  return resultado.recordset;
+  // Normalize foto_url: if it's a filesystem path, try to read and convert to data URL.
+  const publicDir = path.join(process.cwd(), 'public');
+
+  const rows = await Promise.all(
+    resultado.recordset.map(async (row) => {
+      let foto = row.foto_url;
+
+      if (typeof foto === 'string' && foto.trim()) {
+        const trimmed = foto.trim();
+
+        if (trimmed.startsWith('data:')) {
+          // already a data URL
+          row.foto_url = trimmed;
+        } else if (trimmed.startsWith('/')) {
+          // try to read from public folder
+          const filePath = path.join(publicDir, trimmed.replace(/^\//, ''));
+          try {
+            const buffer = await fs.readFile(filePath);
+            row.foto_url = dataUrlFromBuffer(buffer, mimeTypeFromFilePath(filePath));
+          } catch (err) {
+            row.foto_url = null;
+          }
+        } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          // external URL - leave as is
+          row.foto_url = trimmed;
+        } else {
+          // fallback: try to find file under public/uploads with the value as filename
+          const filePath = path.join(publicDir, 'uploads', trimmed);
+          try {
+            const buffer = await fs.readFile(filePath);
+            row.foto_url = dataUrlFromBuffer(buffer, mimeTypeFromFilePath(filePath));
+          } catch (err) {
+            row.foto_url = null;
+          }
+        }
+      } else {
+        row.foto_url = null;
+      }
+
+      return row;
+    })
+  );
+
+  return rows;
 }
 
 export async function obterCategoriaQuartoPorId({ hotelId, categoriaId }) {
   await validarHotelExiste(hotelId);
+  await garantirColunaFotoUrlCategoria();
 
   const resultado = await queryWithParams(
     `SELECT TOP 1
@@ -268,7 +381,11 @@ export async function obterCategoriaQuartoPorId({ hotelId, categoriaId }) {
         c.descricao,
         c.capacidade,
         c.preco_diaria,
-        (SELECT COUNT(1) FROM quarto q WHERE q.categoria_id = c.id) AS total_quartos
+        (SELECT COUNT(1) FROM quarto q WHERE q.categoria_id = c.id) AS total_quartos,
+        COALESCE(
+          c.foto_url,
+          (SELECT TOP 1 q.foto_url FROM quarto q WHERE q.categoria_id = c.id AND q.foto_url IS NOT NULL)
+        ) AS foto_url
      FROM categoria_quarto c
      WHERE c.id = @categoriaId
        AND c.hotel_id = @hotelId`,
@@ -279,11 +396,45 @@ export async function obterCategoriaQuartoPorId({ hotelId, categoriaId }) {
     throw new Error('Categoria de quarto não encontrada');
   }
 
-  return resultado.recordset[0];
+  const row = resultado.recordset[0];
+
+  // Normalize foto_url similar to listarCategoriasQuarto
+  const publicDir = path.join(process.cwd(), 'public');
+  let foto = row.foto_url;
+  if (typeof foto === 'string' && foto.trim()) {
+    const trimmed = foto.trim();
+
+    if (trimmed.startsWith('data:')) {
+      row.foto_url = trimmed;
+    } else if (trimmed.startsWith('/')) {
+      try {
+        const filePath = path.join(publicDir, trimmed.replace(/^\//, ''));
+        const buffer = await fs.readFile(filePath);
+        row.foto_url = dataUrlFromBuffer(buffer, mimeTypeFromFilePath(filePath));
+      } catch (err) {
+        row.foto_url = null;
+      }
+    } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      row.foto_url = trimmed;
+    } else {
+      try {
+        const filePath = path.join(publicDir, 'uploads', trimmed);
+        const buffer = await fs.readFile(filePath);
+        row.foto_url = dataUrlFromBuffer(buffer, mimeTypeFromFilePath(filePath));
+      } catch (err) {
+        row.foto_url = null;
+      }
+    }
+  } else {
+    row.foto_url = null;
+  }
+
+  return row;
 }
 
-export async function criarCategoriaQuarto({ hotelId, nome, descricao = null, capacidade, precoDiaria }) {
+export async function criarCategoriaQuarto({ hotelId, nome, descricao = null, capacidade, precoDiaria, fotoUrl }) {
   await validarHotelExiste(hotelId);
+  await garantirColunaFotoUrlCategoria();
 
   if (!nome) {
     throw new Error('Campo obrigatório: nome');
@@ -308,23 +459,25 @@ export async function criarCategoriaQuarto({ hotelId, nome, descricao = null, ca
   await validarNomeCategoriaUnico({ hotelId, nome: String(nome).trim() });
 
   const resultado = await queryWithParams(
-    `INSERT INTO categoria_quarto (hotel_id, nome, descricao, capacidade, preco_diaria)
-     OUTPUT INSERTED.id, INSERTED.hotel_id, INSERTED.nome, INSERTED.descricao, INSERTED.capacidade, INSERTED.preco_diaria
-     VALUES (@hotelId, @nome, @descricao, @capacidade, @precoDiaria)`,
+    `INSERT INTO categoria_quarto (hotel_id, nome, descricao, capacidade, preco_diaria, foto_url)
+     OUTPUT INSERTED.id, INSERTED.hotel_id, INSERTED.nome, INSERTED.descricao, INSERTED.capacidade, INSERTED.preco_diaria, INSERTED.foto_url
+     VALUES (@hotelId, @nome, @descricao, @capacidade, @precoDiaria, @fotoUrl)`,
     {
       hotelId,
       nome: String(nome).trim(),
       descricao,
       capacidade: capacidadeNumero,
       precoDiaria: precoDiariaNumero,
+      fotoUrl: normalizarFotoUrl(fotoUrl),
     }
   );
 
   return resultado.recordset[0];
 }
 
-export async function atualizarCategoriaQuarto({ hotelId, categoriaId, nome, descricao, capacidade, precoDiaria }) {
+export async function atualizarCategoriaQuarto({ hotelId, categoriaId, nome, descricao, capacidade, precoDiaria, fotoUrl }) {
   await validarHotelExiste(hotelId);
+  await garantirColunaFotoUrlCategoria();
   await obterCategoriaDoHotel({ hotelId, categoriaId });
 
   const campos = [];
@@ -360,6 +513,11 @@ export async function atualizarCategoriaQuarto({ hotelId, categoriaId, nome, des
     params.precoDiaria = precoDiariaNumero;
   }
 
+  if (fotoUrl !== undefined) {
+    campos.push('foto_url = @fotoUrl');
+    params.fotoUrl = normalizarFotoUrl(fotoUrl);
+  }
+
   if (campos.length === 0) {
     throw new Error('Nenhum campo para atualizar');
   }
@@ -367,7 +525,7 @@ export async function atualizarCategoriaQuarto({ hotelId, categoriaId, nome, des
   const resultado = await queryWithParams(
     `UPDATE categoria_quarto
      SET ${campos.join(', ')}
-     OUTPUT INSERTED.id, INSERTED.hotel_id, INSERTED.nome, INSERTED.descricao, INSERTED.capacidade, INSERTED.preco_diaria
+     OUTPUT INSERTED.id, INSERTED.hotel_id, INSERTED.nome, INSERTED.descricao, INSERTED.capacidade, INSERTED.preco_diaria, INSERTED.foto_url
      WHERE id = @categoriaId
        AND hotel_id = @hotelId`,
     params
@@ -393,6 +551,7 @@ export async function deletarCategoriaQuarto({ hotelId, categoriaId }) {
 
 export async function listarQuartos({ hotelId, andarId, categoriaId, status }) {
   await validarHotelExiste(hotelId);
+  await garantirColunaFotoUrlQuarto();
 
   const filtros = ['a.hotel_id = @hotelId'];
   const params = { hotelId };
@@ -422,12 +581,14 @@ export async function listarQuartos({ hotelId, andarId, categoriaId, status }) {
         q.capacidade,
         q.quantidade_camas,
         q.status,
+        q.foto_url,
         q.andar_id,
         a.numero AS andar_numero,
         a.nome AS andar_nome,
         q.categoria_id,
         c.nome AS categoria_nome,
         c.descricao AS categoria_descricao,
+        c.foto_url AS categoria_foto_url,
         c.preco_diaria
      FROM quarto q
      INNER JOIN andar a ON a.id = q.andar_id
@@ -442,6 +603,7 @@ export async function listarQuartos({ hotelId, andarId, categoriaId, status }) {
 
 export async function obterQuartoPorId({ hotelId, quartoId }) {
   await validarHotelExiste(hotelId);
+  await garantirColunaFotoUrlQuarto();
 
   const resultado = await queryWithParams(
     `SELECT TOP 1
@@ -451,12 +613,14 @@ export async function obterQuartoPorId({ hotelId, quartoId }) {
         q.capacidade,
         q.quantidade_camas,
         q.status,
+        q.foto_url,
         q.andar_id,
         a.numero AS andar_numero,
         a.nome AS andar_nome,
         q.categoria_id,
         c.nome AS categoria_nome,
         c.descricao AS categoria_descricao,
+        c.foto_url AS categoria_foto_url,
         c.preco_diaria
      FROM quarto q
      INNER JOIN andar a ON a.id = q.andar_id
@@ -473,8 +637,9 @@ export async function obterQuartoPorId({ hotelId, quartoId }) {
   return resultado.recordset[0];
 }
 
-export async function criarQuarto({ hotelId, andarId, categoriaId, numero, descricao = null, capacidade, quantidadeCamas = null, status = 'livre' }) {
+export async function criarQuarto({ hotelId, andarId, categoriaId, numero, descricao = null, capacidade, quantidadeCamas = null, status = 'livre', fotoUrl }) {
   await validarHotelExiste(hotelId);
+  await garantirColunaFotoUrlQuarto();
 
   if (!andarId) {
     throw new Error('Campo obrigatório: andar_id');
@@ -502,7 +667,7 @@ export async function criarQuarto({ hotelId, andarId, categoriaId, numero, descr
     : Number(categoria.capacidade);
 
   const resultado = await queryWithParams(
-    `INSERT INTO quarto (andar_id, categoria_id, numero, descricao, capacidade, quantidade_camas, status)
+    `INSERT INTO quarto (andar_id, categoria_id, numero, descricao, capacidade, quantidade_camas, status, foto_url)
      OUTPUT
        INSERTED.id,
        INSERTED.andar_id,
@@ -511,8 +676,9 @@ export async function criarQuarto({ hotelId, andarId, categoriaId, numero, descr
        INSERTED.descricao,
        INSERTED.capacidade,
        INSERTED.quantidade_camas,
-       INSERTED.status
-     VALUES (@andarId, @categoriaId, @numero, @descricao, @capacidade, @quantidadeCamas, @status)`,
+       INSERTED.status,
+       INSERTED.foto_url
+     VALUES (@andarId, @categoriaId, @numero, @descricao, @capacidade, @quantidadeCamas, @status, @fotoUrl)`,
     {
       andarId,
       categoriaId,
@@ -521,14 +687,16 @@ export async function criarQuarto({ hotelId, andarId, categoriaId, numero, descr
       capacidade: capacidadeFinal,
       quantidadeCamas,
       status: normalizarStatus(status) || 'livre',
+      fotoUrl: normalizarFotoUrl(fotoUrl),
     }
   );
 
   return resultado.recordset[0];
 }
 
-export async function atualizarQuarto({ hotelId, quartoId, andarId, categoriaId, numero, descricao, capacidade, quantidadeCamas, status }) {
+export async function atualizarQuarto({ hotelId, quartoId, andarId, categoriaId, numero, descricao, capacidade, quantidadeCamas, status, fotoUrl }) {
   await validarHotelExiste(hotelId);
+  await garantirColunaFotoUrlQuarto();
   await obterQuartoPorId({ hotelId, quartoId });
 
   const campos = [];
@@ -573,6 +741,11 @@ export async function atualizarQuarto({ hotelId, quartoId, andarId, categoriaId,
     params.status = normalizarStatus(status);
   }
 
+  if (fotoUrl !== undefined) {
+    campos.push('foto_url = @fotoUrl');
+    params.fotoUrl = normalizarFotoUrl(fotoUrl);
+  }
+
   if (campos.length === 0) {
     throw new Error('Nenhum campo para atualizar');
   }
@@ -588,7 +761,8 @@ export async function atualizarQuarto({ hotelId, quartoId, andarId, categoriaId,
        INSERTED.descricao,
        INSERTED.capacidade,
        INSERTED.quantidade_camas,
-       INSERTED.status
+       INSERTED.status,
+       INSERTED.foto_url
      WHERE id = @quartoId
        AND EXISTS (
          SELECT 1
@@ -624,6 +798,7 @@ export async function deletarQuarto({ hotelId, quartoId }) {
 
 export async function obterArquiteturaHotel({ hotelId }) {
   await validarHotelExiste(hotelId);
+  await garantirColunaFotoUrlQuarto();
 
   const andares = await queryWithParams(
     `SELECT id, hotel_id, numero, nome
@@ -641,6 +816,7 @@ export async function obterArquiteturaHotel({ hotelId }) {
         q.capacidade,
         q.quantidade_camas,
         q.status,
+        q.foto_url,
         q.andar_id,
         q.categoria_id,
         c.nome AS categoria_nome,

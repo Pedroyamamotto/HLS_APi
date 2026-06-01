@@ -1,5 +1,8 @@
 IF OBJECT_ID('quarto', 'U') IS NOT NULL
 BEGIN
+  IF COL_LENGTH('quarto', 'foto_url') IS NOT NULL
+    ALTER TABLE quarto DROP COLUMN foto_url;
+
   IF COL_LENGTH('quarto', 'fotos_json') IS NOT NULL
     ALTER TABLE quarto DROP COLUMN fotos_json;
 END

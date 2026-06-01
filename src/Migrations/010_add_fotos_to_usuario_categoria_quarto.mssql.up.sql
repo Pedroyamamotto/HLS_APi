@@ -12,6 +12,9 @@ END
 
 IF OBJECT_ID('quarto', 'U') IS NOT NULL
 BEGIN
+  IF COL_LENGTH('quarto', 'foto_url') IS NULL
+    ALTER TABLE quarto ADD foto_url NVARCHAR(MAX) NULL;
+
   IF COL_LENGTH('quarto', 'fotos_json') IS NULL
     ALTER TABLE quarto ADD fotos_json NVARCHAR(MAX) NULL;
 END

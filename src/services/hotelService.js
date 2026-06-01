@@ -16,7 +16,7 @@ async function garantirColunaFotoUrlHotel() {
     `IF OBJECT_ID('hotel', 'U') IS NOT NULL
      BEGIN
        IF COL_LENGTH('hotel', 'foto_url') IS NULL
-         ALTER TABLE hotel ADD foto_url NVARCHAR(500) NULL;
+         ALTER TABLE hotel ADD foto_url NVARCHAR(MAX) NULL;
 
        IF COL_LENGTH('hotel', 'foto_url') IS NOT NULL
          AND EXISTS (
@@ -26,7 +26,7 @@ async function garantirColunaFotoUrlHotel() {
              AND name = 'foto_url'
              AND system_type_id <> 231
          )
-         ALTER TABLE hotel ALTER COLUMN foto_url NVARCHAR(500) NULL;
+         ALTER TABLE hotel ALTER COLUMN foto_url NVARCHAR(MAX) NULL;
      END`,
     {}
   );

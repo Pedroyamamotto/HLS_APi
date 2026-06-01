@@ -8,27 +8,28 @@ import {
 } from '../services/usuarioHotelService.js';
 
 function extrairFotoUrl(req) {
-  const bodyFotoUrl = req.body.FotoUrl ?? req.body.fotoUrl ?? req.body.foto_url;
+  const bodyFotoUrl =
+    req.body.FotoUrl ??
+    req.body.fotoUrl ??
+    req.body.foto_url;
+
   if (bodyFotoUrl) return bodyFotoUrl;
 
-  const file = req.file
-    || req.files?.foto?.[0]
-    || req.files?.avatar?.[0]
-    || req.files?.imagem?.[0]
-    || req.files?.arquivo?.[0]
-    || req.files?.imagemPerfil?.[0]
-    || req.file
+  const file =
+    req.file ||
+    req.files?.foto?.[0] ||
+    req.files?.avatar?.[0] ||
+    req.files?.imagem?.[0] ||
+    req.files?.arquivo?.[0] ||
+    req.files?.imagemPerfil?.[0];
 
   if (!file) return undefined;
 
-  if (file.filename) {
-    return `/uploads/${file.filename}`;
-  }
+  if (file.buffer) {
+    const base64 = file.buffer.toString('base64');
+    const mimeType = file.mimetype || 'image/png';
 
-  if (file.path) {
-    const partes = String(file.path).replace(/\\/g, '/').split('/');
-    const filename = partes[partes.length - 1];
-    return filename ? `/uploads/${filename}` : undefined;
+    return `data:${mimeType};base64,${base64}`;
   }
 
   return undefined;
@@ -81,6 +82,7 @@ export async function getUser(req, res) {
 export async function updateUser(req, res) {
   try {
     const { hotelId, userId } = req.params;
+
     const nomeCompleto = req.body.NomeCompleto ?? req.body.nomeCompleto;
     const email        = req.body.Email        ?? req.body.email;
     const telefone     = req.body.Telefone     ?? req.body.telefone;
@@ -90,17 +92,29 @@ export async function updateUser(req, res) {
     const novaSenha    = req.body.NovaSenha    ?? req.body.novaSenha;
 
     const dados = await atualizarUsuarioDoHotel({
-      hotelId, userId,
-      nomeCompleto, email, telefone, roleId, fotoUrl,
-      senhaAtual, novaSenha,
+      hotelId,
+      userId,
+      nomeCompleto,
+      email,
+      telefone,
+      roleId,
+      fotoUrl,
+      senhaAtual,
+      novaSenha,
     });
 
     return res.status(200).json({ sucesso: true, dados });
   } catch (erro) {
     if (erro?.message?.includes('não encontrado')) return naoEncontrado(res, erro.message);
-    if (erro?.message?.includes('inválida') || erro?.message?.includes('obrigatória') || erro?.message?.includes('já cadastrado')) {
+
+    if (
+      erro?.message?.includes('inválida') ||
+      erro?.message?.includes('obrigatória') ||
+      erro?.message?.includes('já cadastrado')
+    ) {
       return erroDadosInvalidos(res, erro.message);
     }
+
     console.error('Erro ao atualizar usuário:', erro?.message || erro);
     return res.status(500).json({ erro: 'Erro ao atualizar usuário' });
   }
