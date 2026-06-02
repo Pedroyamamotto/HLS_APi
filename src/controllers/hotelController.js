@@ -22,8 +22,8 @@ import {
 
 // helpers
 function naoEncontrado(erro) {
-  return erro?.message?.toLowerCase().includes('nao encontrad') ||
-    erro?.message?.toLowerCase().includes('n�o encontrad');
+  const msg = erro?.message?.toLowerCase() ?? '';
+  return msg.includes('nao encontrad') || msg.includes('n\u00e3o encontrad');
 }
 
 function erroNenhumCampo(erro) {
@@ -289,7 +289,7 @@ export async function createRefeicao(req, res) {
   } catch (erro) {
     console.error('Erro ao criar refeicao:', erro?.message);
     if (naoEncontrado(erro)) return res.status(404).json({ erro: erro.message });
-    if (erro?.message?.includes('J� existe')) return res.status(409).json({ erro: erro.message });
+    if (erro?.message?.includes('J\u00e1 existe') || erro?.message?.includes('existe uma refei')) return res.status(409).json({ erro: erro.message });
     return res.status(500).json({ erro: 'Erro ao criar refeicao' });
   }
 }
@@ -423,6 +423,7 @@ export async function saveCardEncoderIntegration(req, res) {
       hotelId: req.params.id,
       encoderHotelId: req.body.hotelId,
       waitMs: req.body.waitMs,
+      integrationApiKey: req.body.integrationApiKey,
     });
 
     return res.status(200).json({ sucesso: true, dados });

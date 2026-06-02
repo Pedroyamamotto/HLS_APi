@@ -754,6 +754,7 @@ export async function salvarPoliciesTimingDoHotel({ hotelId, politica, refeicoes
 const DEFAULT_CARD_ENCODER_CONFIG = {
   hotelId: 'master',
   waitMs: 5000,
+  integrationApiKey: '',
 };
 
 export async function obterIntegracaoCardEncoderDoHotel({ hotelId }) {
@@ -770,6 +771,7 @@ export async function obterIntegracaoCardEncoderDoHotel({ hotelId }) {
     `SELECT TOP 1
         hotel_id,
         encoder_hotel_id,
+        integration_api_key,
         wait_ms,
         atualizado_em,
         criado_em
@@ -782,6 +784,7 @@ export async function obterIntegracaoCardEncoderDoHotel({ hotelId }) {
     return {
       hotelId: DEFAULT_CARD_ENCODER_CONFIG.hotelId,
       waitMs: DEFAULT_CARD_ENCODER_CONFIG.waitMs,
+      integrationApiKey: DEFAULT_CARD_ENCODER_CONFIG.integrationApiKey,
       origem: 'default',
     };
   }
@@ -790,13 +793,14 @@ export async function obterIntegracaoCardEncoderDoHotel({ hotelId }) {
   return {
     hotelId: String(item.encoder_hotel_id || DEFAULT_CARD_ENCODER_CONFIG.hotelId).trim() || DEFAULT_CARD_ENCODER_CONFIG.hotelId,
     waitMs: Number(item.wait_ms) || DEFAULT_CARD_ENCODER_CONFIG.waitMs,
+    integrationApiKey: String(item.integration_api_key || DEFAULT_CARD_ENCODER_CONFIG.integrationApiKey).trim(),
     origem: 'database',
     atualizadoEm: item.atualizado_em,
     criadoEm: item.criado_em,
   };
 }
 
-export async function salvarIntegracaoCardEncoderDoHotel({ hotelId, encoderHotelId, waitMs }) {
+export async function salvarIntegracaoCardEncoderDoHotel({ hotelId, encoderHotelId, waitMs, integrationApiKey }) {
   const hotel = await queryWithParams(
     `SELECT TOP 1 id FROM hotel WHERE id = @hotelId`,
     { hotelId }
@@ -808,6 +812,7 @@ export async function salvarIntegracaoCardEncoderDoHotel({ hotelId, encoderHotel
 
   const hotelIdIntegracao = String(encoderHotelId || '').trim();
   const waitMsNormalizado = Number(waitMs);
+  const integrationApiKeyNormalizada = String(integrationApiKey || '').trim();
 
   if (!hotelIdIntegracao) {
     throw new Error('hotelId é obrigatório');
@@ -824,14 +829,16 @@ export async function salvarIntegracaoCardEncoderDoHotel({ hotelId, encoderHotel
      WHEN MATCHED THEN
        UPDATE SET
          encoder_hotel_id = @encoderHotelId,
+         integration_api_key = @integrationApiKey,
          wait_ms = @waitMs,
          atualizado_em = SYSUTCDATETIME()
      WHEN NOT MATCHED THEN
-       INSERT (hotel_id, encoder_hotel_id, wait_ms)
-       VALUES (@hotelId, @encoderHotelId, @waitMs);`,
+       INSERT (hotel_id, encoder_hotel_id, integration_api_key, wait_ms)
+       VALUES (@hotelId, @encoderHotelId, @integrationApiKey, @waitMs);`,
     {
       hotelId,
       encoderHotelId: hotelIdIntegracao,
+      integrationApiKey: integrationApiKeyNormalizada || null,
       waitMs: Math.round(waitMsNormalizado),
     }
   );

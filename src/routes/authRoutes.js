@@ -36,6 +36,12 @@ router.delete('/usuario', autenticarToken, deleteUser);
 router.post('/recuperar-senha', upload.none(), recuperarSenhaHandler);
 
 /**
+ * POST /auth/recuperar - Alias legado para compatibilidade com clientes existentes
+ * Body: { Email }
+ */
+router.post('/recuperar', upload.none(), recuperarSenhaHandler);
+
+/**
  * POST /auth/redefinir-senha - Confirma código e define nova senha (sem token)
  * Body: { Email, Code, NovaSenha }
  */

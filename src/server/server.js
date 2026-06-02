@@ -38,6 +38,11 @@ app.use('/', router);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+  // Payload JSON invalido deve retornar 400, nao erro interno.
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ erro: 'JSON invalido no corpo da requisicao' });
+  }
+
   console.error('Erro:', err.message);
   res.status(500).json({ erro: 'Erro interno do servidor' });
 });
