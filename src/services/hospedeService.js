@@ -1,6 +1,19 @@
 import { queryWithParams } from '../utils/database.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+let dependenteTableExistsPromise;
+
+async function hasDependenteTable() {
+  if (!dependenteTableExistsPromise) {
+    dependenteTableExistsPromise = queryWithParams(
+      `SELECT CASE WHEN OBJECT_ID('dependente', 'U') IS NOT NULL THEN 1 ELSE 0 END AS exists_flag`
+    )
+      .then((result) => Boolean(result.recordset?.[0]?.exists_flag))
+      .catch(() => false);
+  }
+
+  return dependenteTableExistsPromise;
+}
 
 function apenasDigitos(valor) {
   return String(valor || '').replace(/\D/g, '');
@@ -121,6 +134,7 @@ export async function listarHospedes({ hotelId, nome, email, documento, page = 1
   const pageNumber = Math.max(Number(page) || 1, 1);
   const pageSize = Math.min(Math.max(Number(limit) || 20, 1), 100);
   const offset = (pageNumber - 1) * pageSize;
+  const dependenteTableEnabled = await hasDependenteTable();
 
   const filtros = ['h.hotel_id = @hotelId'];
   const params = { hotelId, offset, pageSize };
@@ -160,7 +174,9 @@ export async function listarHospedes({ hotelId, nome, email, documento, page = 1
         h.nacionalidade,
         h.endereco,
         h.data_nascimento,
-        (SELECT COUNT(1) FROM dependente d WHERE d.hospede_id = h.id) AS total_dependentes
+        ${dependenteTableEnabled
+          ? '(SELECT COUNT(1) FROM dependente d WHERE d.hospede_id = h.id)'
+          : 'CAST(0 AS INT)'} AS total_dependentes
      FROM hospede h
      ${whereClause}
      ORDER BY h.nome

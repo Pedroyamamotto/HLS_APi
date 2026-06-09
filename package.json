@@ -23,6 +23,6 @@
     "swagger-ui-express": "^5.0.1"
   },
   "optionalDependencies": {
-    "msnodesqlv8": "^5.1.9"
+    "msnodesqlv8": "^5.2.0"
   }
 }

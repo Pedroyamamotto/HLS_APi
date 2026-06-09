@@ -11,6 +11,7 @@ import usuarioHotelRoutes from '../routes/usuarioHotelRoutes.js';
 import reservasRoutes from '../routes/reservasRoutes.js';
 import consumoRoutes from '../routes/consumoRoutes.js';
 import reservaLogsRoutes from '../routes/reservaLogsRoutes.js';
+import integrationsRoutes from '../routes/integrationsRoutes.js';
 
 import {
   listReservasByHotel,
@@ -67,6 +68,7 @@ router.use('/hospedes', (req, res) => {
 });
 
 router.use('/lisensa', lisensaRoutes);
+router.use('/api/integrations', integrationsRoutes);
 
 router.get('/verify', verifyPage);
 router.get('/verified', verifiedPage);
